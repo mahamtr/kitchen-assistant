@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { useRouter } from 'expo-router';
 import { YStack, Button, Text } from 'tamagui';
 import supabase from '../src/lib/supacase';
+import api from '../src/lib/api';
 import { useThemeContext } from '../src/theme';
 
 export default function HomeScreen() {
@@ -12,6 +13,15 @@ export default function HomeScreen() {
     supabase.auth.getSession().then(({ data }) => {
       if (!data.session) router.replace('/login');
     });
+
+    (async () => {
+      try {
+        const res = await api.fetch('/');
+        console.log('Backend response:', res);
+      } catch (err) {
+        console.warn('Backend request failed:', err);
+      }
+    })();
   }, []);
 
   const signOut = async () => {
