@@ -25,6 +25,102 @@
 
 [Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
 
+## Data Model
+
+- MongoDB entities documentation: `src/backend/README.mongodb.md`
+
+## App Flow (from `draft_1.pen`)
+
+This flow describes how the product is expected to work end-to-end based on the current UI draft.
+
+### 1) Onboarding Questionnaire (first run)
+
+User answers a 6-step profile setup:
+
+1. Diet style
+2. Allergies and avoids
+3. Cuisine preferences
+4. Weekday cook-time limit
+5. Nutrition target
+6. Weekly structure (leftovers, variety, prep)
+
+Then user lands on **Review and Save**:
+
+- persistent defaults are shown (saved preferences),
+- current-week intent is shown separately,
+- user taps **Save Profile and Build Plan**.
+
+### 2) Home (Today)
+
+Home shows:
+
+- today's target summary,
+- today's recipe cards,
+- important alerts (expiring soon, low stock),
+- action to jump into weekly planning.
+
+### 3) Weekly Planner + AI Edit Loop
+
+- A 7-day plan is generated from saved profile + constraints.
+- User can open **Modify/Generate Plan** to chat with AI.
+- AI chat supports iterative edits (for example: faster dinners, higher protein, exclusions).
+- User taps **Accept Draft** to lock the weekly plan.
+- User can build the grocery list from the accepted plan.
+
+### 4) Kitchen Hub (Inventory Operations)
+
+Kitchen has 3 working views:
+
+- **To Buy**: purchase list auto-derived from weekly plan; mark purchased; launch receipt OCR.
+- **In Stock**: searchable inventory list; tap item to open detail sheet and edit.
+- **Expiring**: prioritize urgent items; add to today's plan or move missing items to To Buy.
+
+Detail flows:
+
+- **Item Detail Sheet**: edit quantity/unit, mark used, or discard.
+- **OCR Review**: review extracted receipt lines, edit uncertain lines, then apply updates to inventory.
+
+### 5) Recipes + Cooking Completion
+
+- Recipes screen has segments: **Weekly Planned**, **Favorites**, **History**.
+- **Chat with Chef** generates/refines recipe drafts using weekly plan + favorites + in-stock items.
+- User accepts a recipe draft, opens recipe detail, then can **Mark as Cooked**.
+- Marking cooked should deduct used inventory quantities.
+
+### 6) Confirmation + Feedback Patterns
+
+- Destructive actions use confirmation dialogs.
+- Batch inventory updates use confirmation sheets.
+- Success/warning/error feedback is shown via toast stack.
+
+## Backend Flow Mapping (Current vs Planned)
+
+### Already in backend
+
+- Auth module (`Supabase` JWT guard/service).
+- Inventory items/events persistence in MongoDB.
+- Inventory endpoints:
+  - `POST /inventory/events`
+  - `GET /inventory/home`
+  - `GET /inventory/events`
+
+### Planned from app flow
+
+- Onboarding profile persistence (diet, allergies, cuisine, time, nutrition, weekly structure).
+- Weekly plan generation + AI revision session state.
+- Grocery list generation from accepted weekly plan.
+- OCR ingestion + reviewed line-item reconciliation into inventory events.
+- Recipes domain (planned/favorite/history) + cook-completion inventory deductions.
+
+### Event-driven expectation for inventory
+
+UI actions should normalize into inventory events (existing event types already support this direction):
+
+- `ADD`: purchased items, OCR-applied additions
+- `USE`: mark cooked / consume item quantities
+- `DISCARD`: remove spoiled/unused items
+- `ADJUST`: manual corrections from item detail/edit forms
+
 ## Project setup
 
 ```bash
