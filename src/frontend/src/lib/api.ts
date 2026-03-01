@@ -1,12 +1,13 @@
 import { Platform } from 'react-native';
+import axios, { AxiosRequestConfig } from 'axios';
 import supabase from './supacase';
 
 const isWeb = Platform.OS === 'web';
 const DEFAULT_LOCAL = 'http://localhost:3000';
 const DEFAULT_DOCKER = 'http://backend:3000';
-const BASE_URL = process.env.EXPO_PUBLIC_BACKEND_URL ?? (isWeb ? DEFAULT_LOCAL : DEFAULT_DOCKER);
+export const BASE_URL = process.env.EXPO_PUBLIC_BACKEND_URL ?? (isWeb ? DEFAULT_LOCAL : DEFAULT_DOCKER);
 
-type FetchOptions = RequestInit & { skipAuth?: boolean };
+type ApiOptions = AxiosRequestConfig & { skipAuth?: boolean };
 
 async function getAuthHeader() {
     const { data } = await supabase.auth.getSession();
@@ -14,24 +15,34 @@ async function getAuthHeader() {
     return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
-export async function apiFetch(path: string, options: FetchOptions = {}) {
-    const cleanBase = BASE_URL.replace(/\/$/, '');
-    const url = path.startsWith('http') ? path : `${cleanBase}${path.startsWith('/') ? '' : '/'}${path}`;
-    const headers: Record<string, string> = { 'Content-Type': 'application/json', ...(options.headers as Record<string, string> || {}) };
+const axiosInstance = axios.create({ baseURL: BASE_URL, headers: { 'Content-Type': 'application/json' } });
 
-    if (!options.skipAuth) {
-        Object.assign(headers, await getAuthHeader());
-    }
+export async function apiRequest(path: string, options: ApiOptions = {}) {
+    const { skipAuth, ...axiosOpts } = options;
+    const headers = { ...(axiosOpts.headers as Record<string, string> || {}) };
+    if (!skipAuth) Object.assign(headers, await getAuthHeader());
 
-    const res = await fetch(url, { ...options, headers });
-    if (!res.ok) {
-        const text = await res.text();
-        throw new Error(`API error ${res.status}: ${text}`);
+    try {
+        const res = await axiosInstance.request({ url: path, ...axiosOpts, headers });
+        return res.data;
+    } catch (err: any) {
+        if (err.response) {
+            const status = err.response.status;
+            const text = err.response.data ? JSON.stringify(err.response.data) : err.response.statusText;
+            throw new Error(`API error ${status}: ${text}`);
+        }
+        throw err;
     }
-    if (res.status === 204) return null;
-    return res.json();
 }
 
-export const api = { fetch: apiFetch, baseUrl: BASE_URL };
+export async function apiGet(path: string, options: ApiOptions = {}) {
+    return apiRequest(path, { method: 'get', ...options });
+}
+
+export async function apiPost(path: string, data?: any, options: ApiOptions = {}) {
+    return apiRequest(path, { method: 'post', data, ...options });
+}
+
+export const api = { request: apiRequest, fetch: apiRequest, get: apiGet, post: apiPost, baseUrl: BASE_URL };
 
 export default api;
