@@ -1,61 +1,56 @@
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'expo-router';
-import { YStack, Input, Button, Text } from 'tamagui';
-import supabase from '../src/lib/supacase';
+import { YStack, Button, Text } from 'tamagui';
+import type { Provider } from '@supabase/supabase-js';
+import { authProviders, signInWithProvider } from '../src/lib/auth';
+import { useAuthStore } from '../src/lib/store/authStore';
 
 export default function LoginScreen() {
   const router = useRouter();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { session } = useAuthStore();
+  const [loadingProvider, setLoadingProvider] = useState<Provider | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      if (data.session) router.replace('/home');
-    });
-  }, []);
+    if (session) router.replace('/home');
+  }, [session, router]);
 
-  const signUp = async () => {
-    setLoading(true);
-    setError(null);
-    const { error } = await supabase.auth.signUp({ email, password });
-    setLoading(false);
-    if (error) setError(error.message);
-  };
+  const handleOAuthSignIn = async (provider: Provider) => {
+    setMessage(null);
+    setLoadingProvider(provider);
 
-  const signIn = async () => {
-    setLoading(true);
-    setError(null);
-    const { error, data } = await supabase.auth.signInWithPassword({ email, password });
-    setLoading(false);
-    if (error) return setError(error.message);
-    if (data.session) router.replace('/home');
+    const result = await signInWithProvider(provider);
+
+    if (result?.error) {
+      const isCancelled = (result as { resultType?: string }).resultType === 'cancel';
+      setMessage(isCancelled ? 'Sign-in cancelled.' : result.error.message);
+    }
+
+    setLoadingProvider(null);
   };
 
   return (
-    <YStack flex={1} justifyContent="center" padding="$4" gap="$3">
-      <Text fontSize="$8">Sign in</Text>
+    <YStack flex={1} justifyContent="center" padding="$5" gap="$4">
+      <YStack gap="$2" marginBottom="$2">
+        <Text fontSize="$10" fontWeight="700">
+          Kitchen Assistant
+        </Text>
+        <Text color="$gray10">Sign in to manage your kitchen inventory.</Text>
+      </YStack>
 
-      <Input
-        placeholder="Email"
-        autoCapitalize="none"
-        keyboardType="email-address"
-        value={email}
-        onChangeText={setEmail}
-      />
+      {authProviders.map((provider) => (
+        <Button
+          key={provider.key}
+          onPress={() => handleOAuthSignIn(provider.key)}
+          disabled={loadingProvider !== null}
+        >
+          {loadingProvider === provider.key
+            ? `Connecting to ${provider.label}...`
+            : `Continue with ${provider.label}`}
+        </Button>
+      ))}
 
-      <Input placeholder="Password" secureTextEntry value={password} onChangeText={setPassword} />
-
-      {error ? <Text color="$red10">{error}</Text> : null}
-
-      <Button onPress={signIn} disabled={loading || !email || !password}>
-        {loading ? 'Loading...' : 'Sign in'}
-      </Button>
-
-      <Button variant="outlined" onPress={signUp} disabled={loading || !email || !password}>
-        Create account
-      </Button>
+      {message ? <Text color="$orange10">{message}</Text> : null}
     </YStack>
   );
 }

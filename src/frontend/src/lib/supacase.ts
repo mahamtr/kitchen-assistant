@@ -29,7 +29,7 @@ const storage = {
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
     storage,
-    detectSessionInUrl: false,
+    detectSessionInUrl: isWeb,
   },
 });
 
