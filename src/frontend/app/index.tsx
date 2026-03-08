@@ -2,14 +2,15 @@ import React, { useEffect } from 'react';
 import { useRouter } from 'expo-router';
 import { YStack, Text } from 'tamagui';
 import { useAuthStore } from '../src/lib/store/authStore';
+import { getIndexRedirectRoute } from '../src/lib/authRouting';
 
 export default function IndexRoute() {
   const router = useRouter();
   const { session, isInitializing } = useAuthStore();
 
   useEffect(() => {
-    if (isInitializing) return;
-    router.replace(session ? '/home' : '/login');
+    const redirect = getIndexRedirectRoute(isInitializing, session);
+    if (redirect) router.replace(redirect);
   }, [isInitializing, session, router]);
 
   return (

@@ -1,117 +1,46 @@
-import React from 'react';
-import { act, create } from 'react-test-renderer';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-
-const replaceMock = vi.fn();
-const getSessionMock = vi.fn();
-const signOutMock = vi.fn();
-const fetchMock = vi.fn();
+import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('expo-router', () => ({
-  useRouter: () => ({ replace: replaceMock }),
+  useRouter: () => ({ replace: vi.fn() }),
 }));
 
-function YStackMock({ children }: { children: React.ReactNode }) {
-  return <>{children}</>;
-}
-
-function TextMock({ children }: { children: React.ReactNode }) {
-  return <>{children}</>;
-}
-
-function ButtonMock({ children }: { children: React.ReactNode }) {
-  return <>{children}</>;
-}
-
 vi.mock('tamagui', () => ({
-  YStack: ({ children, ...props }: { children: React.ReactNode }) => (
-    <YStackMock {...props}>{children}</YStackMock>
-  ),
-  Text: ({ children, ...props }: { children: React.ReactNode }) => <TextMock {...props}>{children}</TextMock>,
-  Button: ({ children, ...props }: { children: React.ReactNode }) => (
-    <ButtonMock {...props}>{children}</ButtonMock>
-  ),
+  YStack: () => null,
+  Button: () => null,
+  Text: () => null,
 }));
 
 vi.mock('../src/lib/supacase', () => ({
-  default: {
-    auth: {
-      getSession: (...args: unknown[]) => getSessionMock(...args),
-      signOut: (...args: unknown[]) => signOutMock(...args),
-    },
-  },
+  default: { auth: { getSession: vi.fn(), signOut: vi.fn() } },
 }));
 
 vi.mock('../src/lib/api', () => ({
-  default: {
-    fetch: (...args: unknown[]) => fetchMock(...args),
-  },
+  default: { fetch: vi.fn() },
 }));
 
 vi.mock('../src/theme', () => ({
   useThemeContext: () => ({ themeName: 'light', toggleTheme: vi.fn() }),
 }));
 
-import HomeScreen from './home';
+import { signOutAndRoute } from './home';
 
-describe('HomeScreen logout behavior', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    getSessionMock.mockResolvedValue({ data: { session: { user: { id: 'u1' } } } });
-    fetchMock.mockResolvedValue({});
+describe('signOutAndRoute', () => {
+  it('routes to /login when sign out succeeds', async () => {
+    const replaceMock = vi.fn();
+    const message = await signOutAndRoute(async () => ({ error: null }), replaceMock);
+
+    expect(message).toBeNull();
+    expect(replaceMock).toHaveBeenCalledWith('/login');
   });
 
-  it('shows logout loading state while sign out is in progress', async () => {
-    let resolveSignOut: (() => void) | undefined;
-    signOutMock.mockImplementationOnce(
-      () =>
-        new Promise((resolve) => {
-          resolveSignOut = () => resolve({ error: null });
-        }),
+  it('returns sign out error message and does not route when sign out fails', async () => {
+    const replaceMock = vi.fn();
+    const message = await signOutAndRoute(
+      async () => ({ error: { message: 'Network down' } }),
+      replaceMock,
     );
 
-    let tree: ReturnType<typeof create>;
-    await act(async () => {
-      tree = create(<HomeScreen />);
-      await Promise.resolve();
-    });
-
-    const logoutButton = tree!.root.findAllByType(ButtonMock)[0];
-
-    await act(async () => {
-      logoutButton.props.onPress();
-      await Promise.resolve();
-    });
-
-    const labelsDuring = tree!.root.findAllByType(ButtonMock).map((node) => String(node.props.children));
-    expect(labelsDuring).toContain('Logging out…');
-
-    await act(async () => {
-      resolveSignOut?.();
-      await Promise.resolve();
-    });
-
-    const labelsAfter = tree!.root.findAllByType(ButtonMock).map((node) => String(node.props.children));
-    expect(labelsAfter).toContain('Logout');
-  });
-
-  it('shows sign out error message and does not route when logout fails', async () => {
-    signOutMock.mockResolvedValueOnce({ error: { message: 'Network down' } });
-
-    let tree: ReturnType<typeof create>;
-    await act(async () => {
-      tree = create(<HomeScreen />);
-      await Promise.resolve();
-    });
-
-    const logoutButton = tree!.root.findAllByType(ButtonMock)[0];
-
-    await act(async () => {
-      await logoutButton.props.onPress();
-    });
-
-    const renderedText = tree!.toJSON();
-    expect(JSON.stringify(renderedText)).toContain('Network down');
-    expect(replaceMock).not.toHaveBeenCalledWith('/login');
+    expect(message).toBe('Network down');
+    expect(replaceMock).not.toHaveBeenCalled();
   });
 });

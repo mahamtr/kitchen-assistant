@@ -5,6 +5,13 @@ import supabase from '../src/lib/supacase';
 import api from '../src/lib/api';
 import { useThemeContext } from '../src/theme';
 
+export async function signOutAndRoute(signOut: () => Promise<{ error: { message: string } | null }>, replace: (path: string) => void) {
+  const { error } = await signOut();
+  if (error) return error.message;
+  replace('/login');
+  return null;
+}
+
 export default function HomeScreen() {
   const router = useRouter();
   const { themeName, toggleTheme } = useThemeContext();
@@ -30,16 +37,13 @@ export default function HomeScreen() {
     setSignOutError(null);
     setIsSigningOut(true);
 
-    const { error } = await supabase.auth.signOut();
+    const errorMessage = await signOutAndRoute(() => supabase.auth.signOut(), router.replace);
 
     setIsSigningOut(false);
 
-    if (error) {
-      setSignOutError(error.message);
-      return;
+    if (errorMessage) {
+      setSignOutError(errorMessage);
     }
-
-    router.replace('/login');
   };
 
   return (

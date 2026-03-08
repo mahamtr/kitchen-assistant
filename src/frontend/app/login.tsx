@@ -4,6 +4,7 @@ import { YStack, Button, Text } from 'tamagui';
 import type { Provider } from '@supabase/supabase-js';
 import { authProviders, signInWithProvider } from '../src/lib/auth';
 import { useAuthStore } from '../src/lib/store/authStore';
+import { shouldRedirectLoginToHome } from '../src/lib/authRouting';
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -12,7 +13,7 @@ export default function LoginScreen() {
   const [message, setMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    if (session) router.replace('/home');
+    if (shouldRedirectLoginToHome(session)) router.replace('/home');
   }, [session, router]);
 
   const handleOAuthSignIn = async (provider: Provider) => {
