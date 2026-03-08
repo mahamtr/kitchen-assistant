@@ -1,15 +1,13 @@
 import { create } from 'zustand';
-import supabase from '../supacase';
-import { fetchUser, UserProfile } from '../services/userService';
+import { Session } from '@supabase/supabase-js';
 
 type UserState = {
-    UserId: string | null;
+  UserId: string | null;
+  session: Session | null;
 };
 
-export const useUserStore = create<UserState>((set, get) => {
-    return { UserId: null };
+export const useUserStore = create<UserState>(() => {
+  return { UserId: null, session: null };
 });
-
-
 
 export default useUserStore;
