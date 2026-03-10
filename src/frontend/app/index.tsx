@@ -1,32 +1,36 @@
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'expo-router';
 import { YStack, Text } from 'tamagui';
-import supabase from '../src/lib/supacase';
+import { useUserStore } from '../src/lib/store/userStore';
+import { useMockAppStore } from '../src/lib/mock/mockStore';
+import { palette } from '../src/components/ui/primitives';
 
 export default function IndexRoute() {
   const router = useRouter();
+  const status = useUserStore((state) => state.status);
+  const appUserId = useUserStore((state) => state.appUserId);
+  const hasCompletedOnboarding = useMockAppStore((state) =>
+    appUserId ? Boolean(state.data.preferences[appUserId]) : false,
+  );
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    let mounted = true;
-    supabase.auth
-      .getSession()
-      .then(({ data }) => {
-        if (!mounted) return;
-        if (data.session) router.replace('/home');
-        else router.replace('/login');
-      })
-      .finally(() => {
-        if (mounted) setLoading(false);
-      });
+    if (status === 'loading') {
+      return;
+    }
 
-    return () => {
-      mounted = false;
-    };
-  }, []);
+    if (status === 'unauthenticated') {
+      router.replace('/login');
+      setLoading(false);
+      return;
+    }
+
+    router.replace(hasCompletedOnboarding ? '/home' : '/onboarding/1');
+    setLoading(false);
+  }, [hasCompletedOnboarding, router, status]);
 
   return (
-    <YStack flex={1} justifyContent="center" alignItems="center">
+    <YStack flex={1} justifyContent="center" alignItems="center" backgroundColor={palette.background}>
       <Text fontSize="$6">{loading ? 'Redirecting…' : 'Redirecting…'}</Text>
     </YStack>
   );

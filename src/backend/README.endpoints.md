@@ -4,6 +4,11 @@ This document defines the target API contract for app flows shown in `draft_1.pe
 
 It is a spec for implementation planning.
 
+Current implementation status:
+
+- The backend currently keeps only auth infrastructure code.
+- The endpoints below are target contract definitions for future backend implementation.
+
 ## Conventions
 
 - Base URL: `/api/v1`

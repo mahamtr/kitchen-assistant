@@ -12,6 +12,7 @@ module.exports = [
             'ios/**',
             'dist/**',
             'build/**',
+            'coverage/**',
             '*.log',
         ],
     },

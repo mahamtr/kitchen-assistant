@@ -1,8 +1,9 @@
 import React, { createContext, useContext, useState, ReactNode } from 'react';
-import { TamaguiProvider, Theme, YStack } from 'tamagui';
+import { TamaguiProvider, Theme } from 'tamagui';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import tamaguiConfig from '../tamagui.config';
+import { palette } from './components/ui/primitives';
 
 type ThemeName = 'light' | 'dark';
 
@@ -28,11 +29,9 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
             <TamaguiProvider config={tamaguiConfig}>
                 <Theme name={themeName}>
                     <SafeAreaProvider>
-                        <SafeAreaView style={{ flex: 1 }}>
-                            <YStack flex={1} px="$4" py="$3" backgroundColor="$background">
-                                <StatusBar style={themeName === 'dark' ? 'light' : 'auto'} />
-                                {children}
-                            </YStack>
+                        <SafeAreaView style={{ flex: 1, backgroundColor: palette.background }}>
+                            <StatusBar style={themeName === 'dark' ? 'light' : 'dark'} />
+                            {children}
                         </SafeAreaView>
                     </SafeAreaProvider>
                 </Theme>
