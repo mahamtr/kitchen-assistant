@@ -4,6 +4,6 @@ import { SupabaseAuthGuard } from './supabase-auth/supabase-auth.guard';
 
 @Module({
   providers: [SupabaseJwtService, SupabaseAuthGuard],
-  exports: [SupabaseJwtService,SupabaseAuthGuard],
+  exports: [SupabaseJwtService, SupabaseAuthGuard],
 })
 export class AuthModule {}

@@ -30,6 +30,8 @@ services:
       context: ./src/frontend
       dockerfile: Dockerfile
     restart: unless-stopped
+    stdin_open: true
+    tty: true
     ports:
       - "19000:19000"
       - "19001:19001"
@@ -39,6 +41,28 @@ services:
       EXPO_HOST: tunnel
     depends_on:
       - backend
+
+  frontend-test:
+    build:
+      context: ./src/frontend
+      dockerfile: Dockerfile
+    profiles:
+      - test
+    environment:
+      CI: "true"
+      NODE_ENV: test
+    command: npm run test
+
+  frontend-coverage:
+    build:
+      context: ./src/frontend
+      dockerfile: Dockerfile
+    profiles:
+      - test
+    environment:
+      CI: "true"
+      NODE_ENV: test
+    command: npm run test:coverage
 
 volumes:
   mongo_data:

@@ -1,4 +1,5 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
+import type { JWTPayload } from 'jose';
 import { createRemoteJWKSet, jwtVerify } from 'jose';
 
 @Injectable()
@@ -21,7 +22,7 @@ export class SupabaseJwtService {
     );
   }
 
-  async verify(token: string) {
+  async verify(token: string): Promise<JWTPayload> {
     try {
       const { payload } = await jwtVerify(token, this.jwks, {
         issuer: this.issuer,

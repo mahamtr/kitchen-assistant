@@ -25,6 +25,12 @@
 
 [Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
 
+Implementation status:
+
+- The backend codebase is currently auth-only.
+- Non-auth business modules have been removed and will be rebuilt against the target architecture in [`architecture.readme.md`](../../architecture.readme.md).
+- Product flows and data contracts described below remain target design, not current implementation.
+
 ## Data Model
 
 - MongoDB entities documentation: `src/backend/README.mongodb.md`
@@ -98,11 +104,7 @@ Detail flows:
 ### Already in backend
 
 - Auth module (`Supabase` JWT guard/service).
-- Inventory items/events persistence in MongoDB.
-- Inventory endpoints:
-  - `POST /inventory/events`
-  - `GET /inventory/home`
-  - `GET /inventory/events`
+- No non-auth business endpoints are currently implemented.
 
 ### Planned from app flow
 
@@ -113,6 +115,8 @@ Detail flows:
 - Recipes domain (planned/favorite/history) + cook-completion inventory deductions.
 
 ### Event-driven expectation for inventory
+
+Target design only once inventory is reintroduced:
 
 UI actions should normalize into inventory events (existing event types already support this direction):
 
