@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Paragraph, Text, XStack, YStack } from 'tamagui';
 import AppScaffold from '../../components/layout/AppScaffold';
@@ -12,26 +12,36 @@ import {
 import { recipesService } from '../../lib/services';
 import { useUiStore } from '../../lib/store/uiStore';
 import type { RecipeGenerationResponse } from '../../lib/types/contracts';
+import type { ChatMessage } from '../../lib/types/entities';
 
 export default function RecipeChatScreen() {
   const router = useRouter();
   const { generationId } = useLocalSearchParams<{ generationId: string }>();
   const pushToast = useUiStore((state) => state.pushToast);
   const [data, setData] = useState<RecipeGenerationResponse | null>(null);
+  const [sessionChat, setSessionChat] = useState<ChatMessage[]>([]);
   const [message, setMessage] = useState('');
   const [working, setWorking] = useState(false);
 
   const load = async () => {
-    setData(await recipesService.getGeneration(generationId));
+    const generationData = await recipesService.getGeneration(generationId);
+    setData(generationData);
+    setSessionChat((currentChat) =>
+      currentChat.length > 0 ? currentChat : (generationData.latestRevision?.chat ?? []),
+    );
   };
 
   useEffect(() => {
     void load();
+
+    return () => {
+      setSessionChat([]);
+    };
   }, [generationId]);
 
   const latestRevision = data?.latestRevision;
   const latestOutput = latestRevision?.latestOutput ?? null;
-  const chatMessages = useMemo(() => latestRevision?.chat ?? [], [latestRevision]);
+  const chatMessages = sessionChat;
   const latestUserMessage = [...chatMessages].reverse().find((entry) => entry.role === 'user');
 
   return (
@@ -151,11 +161,34 @@ export default function RecipeChatScreen() {
             <ActionButton
               variant="secondary"
               onPress={async () => {
+                const trimmedMessage = message.trim();
+                if (!trimmedMessage) {
+                  return;
+                }
+
                 setWorking(true);
                 try {
-                  await recipesService.createGenerationRevision(data.generation.id, { userMessage: message });
+                  await recipesService.createGenerationRevision(data.generation.id, { userMessage: trimmedMessage });
+                  const refreshed = await recipesService.getGeneration(generationId);
+                  setData(refreshed);
+                  setSessionChat((currentChat) => [
+                    ...currentChat,
+                    {
+                      id: `recipe-user-${Date.now()}`,
+                      role: 'user',
+                      content: trimmedMessage,
+                      timestamp: new Date().toISOString(),
+                    },
+                    {
+                      id: `recipe-assistant-${Date.now()}`,
+                      role: 'assistant',
+                      content:
+                        refreshed.latestRevision?.latestOutput?.summary ??
+                        'I updated your recipe draft.',
+                      timestamp: new Date().toISOString(),
+                    },
+                  ]);
                   setMessage('');
-                  await load();
                 } finally {
                   setWorking(false);
                 }

@@ -32,36 +32,72 @@ const { recipesService } = jest.requireMock('../../lib/services') as {
 describe('RecipeChatScreen', () => {
   beforeEach(() => {
     mockReplace.mockClear();
-    recipesService.getGeneration.mockResolvedValue({
-      generation: {
-        id: 'generation-1',
-        userId: 'user-1',
-        weeklyPlanId: 'plan-1',
-        status: 'active',
-        latestRevisionId: 'revision-1',
-        acceptedRecipeId: null,
-        contextSnapshot: {},
-        createdAt: '2026-03-14T00:00:00.000Z',
-        updatedAt: '2026-03-14T00:00:00.000Z',
-      },
-      latestRevision: {
-        id: 'revision-1',
-        generationId: 'generation-1',
-        userId: 'user-1',
-        revisionNumber: 1,
-        chat: [
-          {
-            id: 'chat-1',
-            role: 'assistant',
-            content: 'What would you like to eat?',
-            timestamp: '2026-03-14T00:00:00.000Z',
+    recipesService.getGeneration.mockReset();
+    recipesService.getGeneration
+      .mockResolvedValueOnce({
+        generation: {
+          id: 'generation-1',
+          userId: 'user-1',
+          weeklyPlanId: 'plan-1',
+          status: 'active',
+          latestRevisionId: 'revision-1',
+          acceptedRecipeId: null,
+          contextSnapshot: {},
+          createdAt: '2026-03-14T00:00:00.000Z',
+          updatedAt: '2026-03-14T00:00:00.000Z',
+        },
+        latestRevision: {
+          id: 'revision-1',
+          generationId: 'generation-1',
+          userId: 'user-1',
+          revisionNumber: 1,
+          chat: [
+            {
+              id: 'chat-1',
+              role: 'assistant',
+              content: 'What would you like to eat?',
+              timestamp: '2026-03-14T00:00:00.000Z',
+            },
+          ],
+          latestOutput: null,
+          createdAt: '2026-03-14T00:00:00.000Z',
+          updatedAt: '2026-03-14T00:00:00.000Z',
+        },
+      })
+      .mockResolvedValueOnce({
+        generation: {
+          id: 'generation-1',
+          userId: 'user-1',
+          weeklyPlanId: 'plan-1',
+          status: 'active',
+          latestRevisionId: 'revision-2',
+          acceptedRecipeId: null,
+          contextSnapshot: {},
+          createdAt: '2026-03-14T00:00:00.000Z',
+          updatedAt: '2026-03-14T00:01:00.000Z',
+        },
+        latestRevision: {
+          id: 'revision-2',
+          generationId: 'generation-1',
+          userId: 'user-1',
+          revisionNumber: 2,
+          chat: [],
+          latestOutput: {
+            title: 'Fast Chicken Bowl',
+            summary: 'A quick high-protein bowl with chicken and rice.',
+            metadata: {
+              readyInMinutes: 25,
+              calories: 620,
+              highlight: 'High protein',
+            },
+            ingredients: [],
+            steps: [],
+            tags: ['high-protein'],
           },
-        ],
-        latestOutput: null,
-        createdAt: '2026-03-14T00:00:00.000Z',
-        updatedAt: '2026-03-14T00:00:00.000Z',
-      },
-    });
+          createdAt: '2026-03-14T00:01:00.000Z',
+          updatedAt: '2026-03-14T00:01:00.000Z',
+        },
+      });
     recipesService.createGenerationRevision.mockResolvedValue({});
   });
 
@@ -86,6 +122,11 @@ describe('RecipeChatScreen', () => {
         'generation-1',
         { userMessage: 'I want a high-protein dinner under 30 minutes.' },
       );
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText('I want a high-protein dinner under 30 minutes.')).toBeTruthy();
+      expect(screen.getByText('A quick high-protein bowl with chicken and rice.')).toBeTruthy();
     });
   });
 });

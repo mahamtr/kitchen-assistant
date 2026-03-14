@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'expo-router';
 import { Paragraph, Text, XStack, YStack } from 'tamagui';
 import AppScaffold from '../../components/layout/AppScaffold';
@@ -12,6 +12,7 @@ import {
 import { plannerService } from '../../lib/services';
 import { useUiStore } from '../../lib/store/uiStore';
 import type { WeeklyPlanRevisionResponse } from '../../lib/types/contracts';
+import type { ChatMessage } from '../../lib/types/entities';
 
 function Divider() {
   return <YStack height={1} backgroundColor={palette.border} />;
@@ -21,6 +22,7 @@ export default function PlannerChatScreen() {
   const router = useRouter();
   const pushToast = useUiStore((state) => state.pushToast);
   const [revision, setRevision] = useState<WeeklyPlanRevisionResponse | null>(null);
+  const [sessionChat, setSessionChat] = useState<ChatMessage[]>([]);
   const [message, setMessage] = useState('Please make Tue-Thu dinners lighter and add more high-protein lunches.');
   const [loading, setLoading] = useState(true);
   const [working, setWorking] = useState(false);
@@ -28,7 +30,11 @@ export default function PlannerChatScreen() {
 
   const load = async () => {
     try {
-      setRevision(await plannerService.getLatestRevision());
+      const latestRevision = await plannerService.getLatestRevision();
+      setRevision(latestRevision);
+      setSessionChat((currentChat) =>
+        currentChat.length > 0 ? currentChat : latestRevision.chat,
+      );
     } catch (caughtError) {
       setError(caughtError instanceof Error ? caughtError.message : 'Unable to load planner chat.');
     } finally {
@@ -38,14 +44,38 @@ export default function PlannerChatScreen() {
 
   useEffect(() => {
     void load();
+
+    return () => {
+      setSessionChat([]);
+    };
   }, []);
 
   const createRevision = async () => {
+    const trimmedMessage = message.trim();
+    if (!trimmedMessage) {
+      return;
+    }
+
     setWorking(true);
     setError(null);
     try {
-      const nextRevision = await plannerService.createRevision({ userMessage: message });
+      const nextRevision = await plannerService.createRevision({ userMessage: trimmedMessage });
       setRevision(nextRevision);
+      setSessionChat((currentChat) => [
+        ...currentChat,
+        {
+          id: `planner-user-${Date.now()}`,
+          role: 'user',
+          content: trimmedMessage,
+          timestamp: new Date().toISOString(),
+        },
+        {
+          id: `planner-assistant-${Date.now()}`,
+          role: 'assistant',
+          content: nextRevision.latestOutput.rationale,
+          timestamp: new Date().toISOString(),
+        },
+      ]);
       pushToast({
         title: 'Revision created',
         description: 'The planner draft was refreshed with your latest note.',
@@ -80,7 +110,7 @@ export default function PlannerChatScreen() {
     }
   };
 
-  const chatMessages = useMemo(() => revision?.chat.slice(-3) ?? [], [revision]);
+  const chatMessages = sessionChat.slice(-6);
 
   return (
     <AppScaffold
