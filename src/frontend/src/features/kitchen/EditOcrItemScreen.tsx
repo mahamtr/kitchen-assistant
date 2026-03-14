@@ -10,10 +10,16 @@ import {
   TextField,
   palette,
 } from '../../components/ui/primitives';
+import { MeasurementUnitPicker } from './components/MeasurementUnitPicker';
 import { useKeyboardMetrics } from '../../hooks/useKeyboardVisible';
 import { kitchenService } from '../../lib/services';
 import { useUiStore } from '../../lib/store/uiStore';
 import type { OcrReviewResponse } from '../../lib/types/contracts';
+import {
+  isCountMeasurementUnit,
+  isSupportedMeasurementUnit,
+  normalizeEditableMeasurementUnit,
+} from '../../lib/utils/measurement';
 
 export default function EditOcrItemScreen() {
   const router = useRouter();
@@ -36,7 +42,7 @@ export default function EditOcrItemScreen() {
       setReview(nextReview);
       setName(line.name);
       setQuantityValue(String(line.quantityValue));
-      setQuantityUnit(line.quantityUnit);
+      setQuantityUnit(normalizeEditableMeasurementUnit(line.quantityUnit));
       setNote(line.note ?? '');
     };
 
@@ -44,6 +50,12 @@ export default function EditOcrItemScreen() {
   }, [lineId]);
 
   const line = review?.lines.find((entry) => entry.id === lineId);
+  const parsedQuantityValue = Number(quantityValue);
+  const quantityIsValid =
+    quantityValue.trim().length > 0 &&
+    Number.isFinite(parsedQuantityValue) &&
+    parsedQuantityValue > 0 &&
+    (!isCountMeasurementUnit(quantityUnit) || Number.isInteger(parsedQuantityValue));
 
   if (!line) {
     return (
@@ -138,14 +150,23 @@ export default function EditOcrItemScreen() {
                   <Paragraph color={palette.textSecondary} fontSize={12}>
                     Current parse
                   </Paragraph>
-                  <XStack gap={10}>
-                    <YStack flex={1}>
-                      <TextField label="Value" value={quantityValue} onChangeText={setQuantityValue} placeholder="500" />
-                    </YStack>
-                    <YStack flex={1}>
-                      <TextField label="Unit" value={quantityUnit} onChangeText={setQuantityUnit} placeholder="g" />
-                    </YStack>
-                  </XStack>
+                  <TextField
+                    label="Value"
+                    value={quantityValue}
+                    onChangeText={setQuantityValue}
+                    placeholder="500"
+                    keyboardType={isCountMeasurementUnit(quantityUnit) ? 'number-pad' : 'decimal-pad'}
+                  />
+                  <Paragraph color={palette.textSecondary} fontSize={12}>
+                    {isCountMeasurementUnit(quantityUnit)
+                      ? 'Count units must stay whole numbers.'
+                      : 'Use a positive numeric quantity. kg and l are normalized on save.'}
+                  </Paragraph>
+                  <MeasurementUnitPicker
+                    value={quantityUnit}
+                    onValueChange={setQuantityUnit}
+                    helperText="Pick an exact unit before applying the OCR line."
+                  />
                 </SectionCard>
 
                 <SectionCard tone="muted">
@@ -166,7 +187,29 @@ export default function EditOcrItemScreen() {
                     </ActionButton>
                     <ActionButton
                       fullWidth
+                      disabled={!name.trim() || !quantityIsValid}
                       onPress={async () => {
+                        if (!quantityIsValid) {
+                          pushToast({
+                            title: 'Enter an exact quantity',
+                            description: isCountMeasurementUnit(quantityUnit)
+                              ? 'Count units must use a whole number.'
+                              : 'Use a positive numeric quantity before saving.',
+                            tone: 'warning',
+                          });
+                          return;
+                        }
+
+                        if (!isSupportedMeasurementUnit(quantityUnit)) {
+                          pushToast({
+                            title: 'Unsupported unit',
+                            description:
+                              'Use g, kg, ml, l, piece, clove, egg, can, jar, pack, fillet, or slice.',
+                            tone: 'warning',
+                          });
+                          return;
+                        }
+
                         await kitchenService.updateOcrLine(line.id, {
                           name,
                           quantityValue: Number(quantityValue || 0),

@@ -1,5 +1,5 @@
 import { Stack } from 'expo-router';
-import { mainStackScreenOptions, pushStackScreenOptions } from '../../routeOptions';
+import { mainStackScreenOptions, pushStackScreenOptions } from '../../../navigation/routeOptions';
 
 export default function PlannerRoutesLayout() {
   return (

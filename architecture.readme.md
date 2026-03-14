@@ -22,15 +22,16 @@ Kitchen Assistant is a multi-client system:
 - Frontend: Expo + React Native (`src/frontend`)
 - Backend: NestJS API (`src/backend`)
 - Database: MongoDB
-- Auth provider: Supabase JWT verified by backend auth guard
+- Auth provider: Supabase Auth, accessed by the backend; frontend talks only to backend APIs
 
 Request flow:
 
-1. User authenticates with Supabase in the client.
-2. Client sends `Authorization: Bearer <token>` to backend.
-3. Backend validates JWT and derives identity from auth context.
-4. Backend executes domain logic and persists Mongo documents.
-5. Client consumes API DTOs (not raw DB entities).
+1. User authenticates against backend auth endpoints.
+2. Backend exchanges or manages the Supabase auth flow and returns tokens to the client.
+3. Client sends `Authorization: Bearer <token>` to backend.
+4. Backend validates JWT and derives identity from auth context.
+5. Backend executes domain logic and persists Mongo documents.
+6. Client consumes API DTOs (not raw DB entities).
 
 Rule: protected endpoints must not accept `userId` from request body/query.
 
@@ -101,6 +102,24 @@ Recommended aggregate focus:
 - `GroceryLists`: current shopping/planning state derived from plan and inventory
 - `Preferences`: single `UserPreference` aggregate per user
 
+Planner AI implementation rules:
+
+- Weekly-plan generation and revision chat are backend-owned workflows.
+- Backend sends the normalized saved preference profile plus revision chat context to OpenAI.
+- OpenAI output must be validated as strict JSON before persisting any planner revision or accepted plan update.
+- Planner revisions may mix existing saved recipes with brand-new inline recipe drafts.
+- Inline planner draft recipes live only inside `WeeklyPlanRevision.latestOutput` until the user accepts the revision.
+- Accepting a planner revision must materialize any inline draft recipes into real `Recipe` documents, then rewrite the accepted `WeeklyPlan.days` to concrete `recipeId` references.
+- Accepted weekly plans must remain concrete and stable: no inline draft recipes are stored in `WeeklyPlan.days`.
+- Planner recipe selection is user-catalog based, not week-pool based; default planner recipes seed a reusable per-user recipe catalog once and accepted planner-created recipes join that same catalog.
+- Prompt text should live in planner-specific backend constants, not inline in controllers or services.
+- All provider SDK access should flow through a shared backend AI gateway/module so planner and recipe workflows stay provider-agnostic at the application layer.
+- Recipe and grocery quantities must use exact structured measurements as source of truth.
+- Canonical stored units are `g`, `ml`, and exact count units; `kg` and `l` are accepted input/display conveniences, not stored base units.
+- Backend must never rely on parsing formatted quantity strings once a structured measurement is available.
+- Recipe chef-chat sessions may start empty with an assistant greeting and no draft recipe yet; the first user turn creates the first recipe draft revision.
+- Recipe chef-chat draft generation is backend-owned and OpenAI-backed: backend assembles prompt context from preferences, weekly-plan recipes, favorites, recent recipe history, and inventory, then validates strict JSON draft output before persisting any revision.
+
 ## 3) CQRS Strategy (Pragmatic)
 
 CQRS is adopted for complexity management, not dogma.
@@ -124,6 +143,7 @@ We are **not** doing full event sourcing. Inventory keeps event history because 
 Use explicit command handlers for state-changing operations, for example:
 
 - `GenerateCurrentWeeklyPlanCommand`
+- `CreateWeeklyPlanRevisionCommand`
 - `AcceptWeeklyPlanRevisionCommand`
 - `MarkGroceryItemsPurchasedCommand`
 - `ApplyOcrInventoryCommand`
@@ -143,6 +163,7 @@ Use explicit query handlers for read endpoints, for example:
 - `GetHomeTodayQuery`
 - `GetInventorySummaryQuery`
 - `GetCurrentGroceryListQuery`
+- `GetCurrentWeeklyPlanQuery`
 - `GetWeeklyPlanRevisionsQuery`
 
 Query handler responsibilities:

@@ -7,6 +7,7 @@ import { ActionButton, SectionCard, StickyFooter, palette } from '../../componen
 import { kitchenService } from '../../lib/services';
 import { useUiStore } from '../../lib/store/uiStore';
 import type { OcrReviewResponse } from '../../lib/types/contracts';
+import { formatMeasurement } from '../../lib/utils/measurement';
 
 function Divider() {
   return <YStack height={1} backgroundColor={palette.border} />;
@@ -101,7 +102,7 @@ export default function OcrReviewScreen() {
                         {line.name}
                       </Text>
                       <Text color={palette.textStrong} fontSize={13}>
-                        x{line.quantityValue}
+                        {formatMeasurement(line.quantityValue, line.quantityUnit, '0 piece')}
                       </Text>
                       <Text color={line.accepted ? palette.success : palette.primary} fontSize={12} fontWeight="700">
                         {line.accepted ? 'add' : 'match'}

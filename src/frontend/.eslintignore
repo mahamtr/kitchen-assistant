@@ -1,8 +1,0 @@
-node_modules
-.expo
-.expo-shared
-android
-ios
-dist
-build
-*.log

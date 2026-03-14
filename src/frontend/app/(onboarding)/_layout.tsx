@@ -1,5 +1,5 @@
 import { Stack } from 'expo-router';
-import { pushStackScreenOptions } from '../routeOptions';
+import { pushStackScreenOptions } from '../../navigation/routeOptions';
 
 export default function OnboardingRoutesLayout() {
   return (

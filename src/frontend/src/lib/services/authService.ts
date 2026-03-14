@@ -1,5 +1,11 @@
-import * as Linking from 'expo-linking';
-import { supabase } from '../supacase';
+import {
+  clearStoredAuthSession,
+  getStoredAuthSession,
+  setStoredAuthSession,
+  type StoredAuthSession,
+} from '../authSession';
+import { apiGet, apiPost } from '../api';
+import { useUserStore } from '../store/userStore';
 import type {
   ForgotPasswordRequest,
   ResetPasswordRequest,
@@ -7,89 +13,68 @@ import type {
   SignInRequest,
   SignUpRequest,
 } from '../types/contracts';
+import { userService } from './userService';
 
-function toSessionUser(user: {
-  id: string;
-  email?: string | null;
-  user_metadata?: Record<string, unknown>;
-}): SessionUserSummary {
-  return {
-    supabaseUserId: user.id,
-    email: user.email ?? null,
-    displayName:
-      (typeof user.user_metadata?.displayName === 'string' && user.user_metadata.displayName) ||
-      (typeof user.user_metadata?.fullName === 'string' && user.user_metadata.fullName) ||
-      (typeof user.user_metadata?.name === 'string' && user.user_metadata.name) ||
-      user.email?.split('@')[0] ||
-      'Kitchen Assistant User',
-  };
+type SignUpResponse = {
+  user: SessionUserSummary | null;
+  session: StoredAuthSession | null;
+  requiresEmailVerification: boolean;
+};
+
+async function restoreSession(): Promise<SessionUserSummary | null> {
+  const storedSession = await getStoredAuthSession();
+
+  if (!storedSession?.accessToken) {
+    useUserStore.getState().setUnauthenticated();
+    return null;
+  }
+
+  try {
+    const authUser = (await apiGet('/auth/session')) as SessionUserSummary;
+    const profile = await userService.bootstrapFromSession(authUser);
+    const preference = await userService.getPreferences();
+    useUserStore
+      .getState()
+      .setAuthenticated(authUser, profile.id, Boolean(preference));
+    return authUser;
+  } catch (error) {
+    await clearStoredAuthSession();
+    useUserStore.getState().setUnauthenticated();
+    throw error;
+  }
 }
 
 async function signIn(payload: SignInRequest) {
-  const { data, error } = await supabase.auth.signInWithPassword({
-    email: payload.email,
-    password: payload.password,
-  });
-
-  if (error) {
-    throw new Error(error.message);
-  }
-
-  return data.session;
+  const session = (await apiPost('/auth/login', payload, {
+    skipAuth: true,
+  })) as StoredAuthSession;
+  await setStoredAuthSession(session);
+  await restoreSession();
+  return session;
 }
 
-async function signUp(payload: SignUpRequest) {
-  const { data, error } = await supabase.auth.signUp({
-    email: payload.email,
-    password: payload.password,
-    options: {
-      data: {
-        fullName: payload.fullName,
-        displayName: payload.fullName,
-      },
-    },
-  });
+async function signUp(payload: SignUpRequest): Promise<SignUpResponse> {
+  const result = (await apiPost('/auth/signup', payload, {
+    skipAuth: true,
+  })) as SignUpResponse;
 
-  if (error) {
-    throw new Error(error.message);
+  if (result.session) {
+    await setStoredAuthSession(result.session);
+    await restoreSession();
+    return result;
   }
 
-  return {
-    user: data.user ? toSessionUser(data.user) : null,
-    session: data.session,
-    requiresEmailVerification: !data.session,
-  };
+  await clearStoredAuthSession();
+  useUserStore.getState().setUnauthenticated();
+  return result;
 }
 
 async function signInWithGoogle() {
-  const redirectTo = Linking.createURL('/');
-  const { data, error } = await supabase.auth.signInWithOAuth({
-    provider: 'google',
-    options: {
-      redirectTo,
-    },
-  });
-
-  if (error) {
-    throw new Error(error.message);
-  }
-
-  return data;
+  throw new Error('Google sign-in is not available yet.');
 }
 
 async function requestPasswordReset(payload: ForgotPasswordRequest) {
-  const redirectTo = Linking.createURL('/reset-password');
-  const { error } = await supabase.auth.resetPasswordForEmail(payload.email, {
-    redirectTo,
-  });
-
-  if (error) {
-    throw new Error(error.message);
-  }
-
-  return {
-    message: 'If the account exists, reset instructions were sent.',
-  };
+  return apiPost('/auth/password/forgot', payload, { skipAuth: true });
 }
 
 async function updatePassword(payload: ResetPasswordRequest) {
@@ -97,39 +82,28 @@ async function updatePassword(payload: ResetPasswordRequest) {
     throw new Error('Passwords do not match.');
   }
 
-  const { error } = await supabase.auth.updateUser({
-    password: payload.newPassword,
-  });
-
-  if (error) {
-    throw new Error(error.message);
-  }
-
-  return {
-    message: 'Password updated successfully.',
-  };
+  return apiPost('/auth/password/reset', payload, { skipAuth: true });
 }
 
 async function signOut() {
-  const { error } = await supabase.auth.signOut();
-  if (error) {
-    throw new Error(error.message);
+  try {
+    await apiPost('/auth/logout');
+  } catch {
+    // Clear the local session even if the backend logout call fails.
   }
+
+  await clearStoredAuthSession();
+  useUserStore.getState().setUnauthenticated();
 }
 
 async function getSessionUser(): Promise<SessionUserSummary | null> {
-  const { data, error } = await supabase.auth.getSession();
-
-  if (error) {
-    throw new Error(error.message);
-  }
-
-  return data.session?.user ? toSessionUser(data.session.user) : null;
+  return restoreSession();
 }
 
 export const authService = {
   getSessionUser,
   requestPasswordReset,
+  restoreSession,
   signIn,
   signInWithGoogle,
   signOut,

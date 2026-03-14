@@ -59,7 +59,7 @@ describe('KitchenHubScreen navigation', () => {
           name: view === 'expiring' ? 'Spinach' : 'Greek yogurt',
           category: view === 'expiring' ? 'Produce' : 'Dairy',
           location: view === 'expiring' ? 'fridge' : 'fridge',
-          quantity: { value: view === 'expiring' ? 1 : 2, unit: view === 'expiring' ? 'bag' : 'tubs' },
+          quantity: { value: view === 'expiring' ? 60 : 1500, unit: 'g' },
           status: view === 'expiring' ? 'use_soon' : 'fresh',
           source: 'kitchen_hub',
           createdAt: '2026-03-10T00:00:00.000Z',
@@ -76,11 +76,15 @@ describe('KitchenHubScreen navigation', () => {
       expect(screen.getByText('Greek yogurt')).toBeTruthy();
     });
 
+    expect(screen.getByText('1.5 kg')).toBeTruthy();
+
     fireEvent.press(screen.getByText('Expiring'));
 
     await waitFor(() => {
       expect(screen.getByText('Spinach')).toBeTruthy();
     });
+
+    expect(screen.getByText('60 g')).toBeTruthy();
 
     fireEvent.press(screen.getByText('Spinach'));
 

@@ -27,9 +27,9 @@
 
 Implementation status:
 
-- The backend codebase is currently auth-only.
-- Non-auth business modules have been removed and will be rebuilt against the target architecture in [`architecture.readme.md`](../../architecture.readme.md).
-- Product flows and data contracts described below remain target design, not current implementation.
+- The backend now includes implemented auth, users/preferences, onboarding, weekly plans, grocery lists, inventory, recipes, and home aggregation modules.
+- Supabase remains the auth provider, but the frontend should authenticate through backend endpoints instead of calling Supabase directly.
+- A few auth/provider flows still remain thinner than the target design, especially Google OAuth and the full reset-password recovery handoff.
 
 ## Data Model
 

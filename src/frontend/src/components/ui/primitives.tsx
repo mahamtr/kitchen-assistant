@@ -165,6 +165,7 @@ export function TextField({
   secureTextEntry,
   multiline,
   editable = true,
+  keyboardType,
 }: {
   label?: string;
   value: string;
@@ -173,6 +174,7 @@ export function TextField({
   secureTextEntry?: boolean;
   multiline?: boolean;
   editable?: boolean;
+  keyboardType?: ComponentProps<typeof TextInput>['keyboardType'];
 }) {
   return (
     <YStack gap={6}>
@@ -194,6 +196,7 @@ export function TextField({
             placeholderTextColor={palette.textMuted}
             value={value}
             onChangeText={onChangeText}
+            keyboardType={keyboardType}
             style={{
               minHeight: 82,
               color: palette.text,
@@ -216,6 +219,7 @@ export function TextField({
           height={40}
           paddingHorizontal={12}
           editable={editable}
+          keyboardType={keyboardType}
         />
       )}
     </YStack>
@@ -566,7 +570,7 @@ export function ConfirmDialog({
       <SectionCard>
         <SectionHeading title={title} subtitle={description} />
         <Paragraph color={palette.textSecondary} fontSize={13} lineHeight={18}>
-          This action updates your mock data immediately.
+          This action updates your data immediately.
         </Paragraph>
         <XStack gap={10}>
           <ActionButton variant="secondary" onPress={onCancel} fullWidth>

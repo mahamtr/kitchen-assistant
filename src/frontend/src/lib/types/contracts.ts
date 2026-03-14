@@ -3,6 +3,7 @@ import type {
   EntityId,
   GroceryList,
   GroceryListItem,
+  MeasurementValue,
   InventoryEvent,
   InventoryItem,
   OcrReceiptLine,
@@ -45,8 +46,10 @@ export interface ForgotPasswordRequest {
 }
 
 export interface ResetPasswordRequest {
+  email: string;
   newPassword: string;
   confirmPassword: string;
+  resetToken: string;
 }
 
 export interface UserProfileResponse {
@@ -98,6 +101,7 @@ export interface GroceryPreviewItem {
   itemId: EntityId;
   name: string;
   quantity: string;
+  measurement: MeasurementValue;
   note: string;
 }
 
