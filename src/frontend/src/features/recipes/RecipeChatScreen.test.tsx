@@ -55,7 +55,7 @@ describe('RecipeChatScreen', () => {
             {
               id: 'chat-1',
               role: 'assistant',
-              content: 'What would you like to eat?',
+              content: 'Persisted chef transcript from backend',
               timestamp: '2026-03-14T00:00:00.000Z',
             },
           ],
@@ -105,9 +105,10 @@ describe('RecipeChatScreen', () => {
     renderWithProviders(<RecipeChatScreen />);
 
     await waitFor(() => {
-      expect(screen.getByText('What would you like to eat?')).toBeTruthy();
+      expect(screen.getByPlaceholderText('What would you like to eat?')).toBeTruthy();
     });
 
+    expect(screen.queryByText('Persisted chef transcript from backend')).toBeNull();
     expect(screen.queryByText('Accept Draft')).toBeNull();
     expect(screen.getByText('Generate first draft')).toBeTruthy();
 

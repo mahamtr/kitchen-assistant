@@ -26,9 +26,6 @@ export default function RecipeChatScreen() {
   const load = async () => {
     const generationData = await recipesService.getGeneration(generationId);
     setData(generationData);
-    setSessionChat((currentChat) =>
-      currentChat.length > 0 ? currentChat : (generationData.latestRevision?.chat ?? []),
-    );
   };
 
   useEffect(() => {
