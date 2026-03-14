@@ -199,6 +199,9 @@ describe('Planner command handlers', () => {
         latestOutput,
       }),
     );
+    expect(
+      (weeklyPlanRevisionModel.create as jest.Mock).mock.calls[0][0],
+    ).not.toHaveProperty('chat');
     expect(plannerDraftMaterializer.materializeAcceptedOutput).toHaveBeenCalled();
     expect(plan.days).toEqual(acceptedDays);
     expect(plan.acceptedRevisionId?.toString()).toBe(revisionId.toString());
@@ -300,6 +303,9 @@ describe('Planner command handlers', () => {
         latestOutput,
       }),
     );
+    expect(
+      (weeklyPlanRevisionModel.create as jest.Mock).mock.calls[0][0],
+    ).not.toHaveProperty('chat');
   });
 
   it('AcceptWeeklyPlanRevisionHandler materializes inline recipes and rewrites the accepted plan', async () => {
