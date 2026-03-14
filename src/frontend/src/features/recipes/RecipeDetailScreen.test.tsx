@@ -42,7 +42,12 @@ describe('RecipeDetailScreen', () => {
         summary: 'Quick dinner',
         status: 'published',
         ingredients: [
-          { id: 'ingredient-1', name: 'Chicken breast', quantity: '300 g' },
+          {
+            id: 'ingredient-1',
+            name: 'Chicken breast',
+            quantity: '300 g',
+            measurement: { value: 300, unit: 'g' },
+          },
         ],
         steps: [
           { id: 'step-1', order: 1, text: 'Cook the chicken.' },
@@ -64,7 +69,12 @@ describe('RecipeDetailScreen', () => {
         summary: 'Quick dinner',
         status: 'published',
         ingredients: [
-          { id: 'ingredient-1', name: 'Chicken breast', quantity: '300 g' },
+          {
+            id: 'ingredient-1',
+            name: 'Chicken breast',
+            quantity: '300 g',
+            measurement: { value: 300, unit: 'g' },
+          },
         ],
         steps: [
           { id: 'step-1', order: 1, text: 'Cook the chicken.' },
@@ -86,7 +96,12 @@ describe('RecipeDetailScreen', () => {
         summary: 'Quick dinner',
         status: 'published',
         ingredients: [
-          { id: 'ingredient-1', name: 'Chicken breast', quantity: '300 g' },
+          {
+            id: 'ingredient-1',
+            name: 'Chicken breast',
+            quantity: '300 g',
+            measurement: { value: 300, unit: 'g' },
+          },
         ],
         steps: [
           { id: 'step-1', order: 1, text: 'Cook the chicken.' },
@@ -108,7 +123,12 @@ describe('RecipeDetailScreen', () => {
         summary: 'Quick dinner',
         status: 'published',
         ingredients: [
-          { id: 'ingredient-1', name: 'Chicken breast', quantity: '300 g' },
+          {
+            id: 'ingredient-1',
+            name: 'Chicken breast',
+            quantity: '300 g',
+            measurement: { value: 300, unit: 'g' },
+          },
         ],
         steps: [
           { id: 'step-1', order: 1, text: 'Cook the chicken.' },

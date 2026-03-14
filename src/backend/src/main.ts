@@ -3,6 +3,7 @@ import { AppModule } from './app.module';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, { abortOnError: false });
+  app.setGlobalPrefix('api/v1');
 
   // CORS: allow origins from env var BACKEND_CORS_ORIGINS (comma-separated)
   // Fallback: allow all origins (useful for local dev). In production, set BACKEND_CORS_ORIGINS.

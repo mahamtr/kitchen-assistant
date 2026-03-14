@@ -128,7 +128,7 @@ describe('visual primitives', () => {
     expect(onSearchChange).toHaveBeenCalledWith('lemon');
     expect(onCancel).toHaveBeenCalledTimes(1);
     expect(onConfirm).toHaveBeenCalledTimes(1);
-    expect(screen.getByText('This action updates your mock data immediately.')).toBeTruthy();
+    expect(screen.getByText('This action updates your data immediately.')).toBeTruthy();
   });
 
   it('does not render a confirm dialog when hidden', () => {

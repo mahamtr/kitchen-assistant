@@ -7,7 +7,13 @@ type UserState = {
   status: SessionStatus;
   authUser: SessionUserSummary | null;
   appUserId: string | null;
-  setAuthenticated: (authUser: SessionUserSummary, appUserId: string) => void;
+  hasCompletedOnboarding: boolean;
+  setAuthenticated: (
+    authUser: SessionUserSummary,
+    appUserId: string,
+    hasCompletedOnboarding: boolean,
+  ) => void;
+  setOnboardingCompleted: (hasCompletedOnboarding: boolean) => void;
   setUnauthenticated: () => void;
 };
 
@@ -15,17 +21,24 @@ export const useUserStore = create<UserState>((set) => ({
   status: 'loading',
   authUser: null,
   appUserId: null,
-  setAuthenticated: (authUser, appUserId) =>
+  hasCompletedOnboarding: false,
+  setAuthenticated: (authUser, appUserId, hasCompletedOnboarding) =>
     set({
       status: 'authenticated',
       authUser,
       appUserId,
+      hasCompletedOnboarding,
+    }),
+  setOnboardingCompleted: (hasCompletedOnboarding) =>
+    set({
+      hasCompletedOnboarding,
     }),
   setUnauthenticated: () =>
     set({
       status: 'unauthenticated',
       authUser: null,
       appUserId: null,
+      hasCompletedOnboarding: false,
     }),
 }));
 

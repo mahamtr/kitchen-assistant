@@ -18,6 +18,14 @@ function Divider() {
   return <YStack height={1} backgroundColor={palette.border} />;
 }
 
+function formatMealSlot(slot: string | undefined, index: number) {
+  if (typeof slot !== 'string' || slot.length === 0) {
+    return `Meal ${index + 1}`;
+  }
+
+  return slot[0].toUpperCase() + slot.slice(1);
+}
+
 export default function HomeScreen() {
   const router = useRouter();
   const [data, setData] = useState<HomeTodayResponse | null>(null);
@@ -37,6 +45,8 @@ export default function HomeScreen() {
 
     void load();
   }, []);
+
+  const todayMeals = data?.todayMeals ?? [];
 
   return (
     <AppScaffold
@@ -105,21 +115,51 @@ export default function HomeScreen() {
               accessory={<PillBadge label="tap a meal" tone="success" />}
             />
             <YStack gap={0}>
-              {data.todayMeals.map((meal, index) => (
-                <YStack key={meal.slot}>
-                  {index > 0 ? <Divider /> : null}
-                  <Pressable onPress={() => router.push(`/recipes/${meal.recipeId}`)}>
-                    <XStack justifyContent="space-between" alignItems="center" paddingVertical={12} gap={12}>
-                      <Text color={palette.text} fontSize={14} fontWeight="600">
-                        {meal.slot[0].toUpperCase() + meal.slot.slice(1)}
-                      </Text>
-                      <Text color={palette.primary} fontSize={13} fontWeight="700" textAlign="right" flex={1}>
-                        {meal.title}
-                      </Text>
-                    </XStack>
-                  </Pressable>
-                </YStack>
-              ))}
+              {todayMeals.length === 0 ? (
+                <Paragraph color={palette.textSecondary} fontSize={13} lineHeight={18}>
+                  No meals planned for today yet.
+                </Paragraph>
+              ) : (
+                todayMeals.map((meal, index) => {
+                  const slotLabel = formatMealSlot(meal.slot, index);
+                  const recipeId =
+                    typeof meal.recipeId === 'string' ? meal.recipeId : '';
+                  const title =
+                    typeof meal.title === 'string' && meal.title.length > 0
+                      ? meal.title
+                      : 'Untitled recipe';
+                  const canOpenRecipe = recipeId.length > 0;
+
+                  return (
+                    <YStack key={`${meal.slot ?? 'meal'}-${recipeId || index}`}>
+                      {index > 0 ? <Divider /> : null}
+                      <Pressable
+                        disabled={!canOpenRecipe}
+                        onPress={() => {
+                          if (canOpenRecipe) {
+                            router.push(`/recipes/${recipeId}`);
+                          }
+                        }}
+                      >
+                        <XStack justifyContent="space-between" alignItems="center" paddingVertical={12} gap={12}>
+                          <Text color={palette.text} fontSize={14} fontWeight="600">
+                            {slotLabel}
+                          </Text>
+                          <Text
+                            color={canOpenRecipe ? palette.primary : palette.textSecondary}
+                            fontSize={13}
+                            fontWeight="700"
+                            textAlign="right"
+                            flex={1}
+                          >
+                            {title}
+                          </Text>
+                        </XStack>
+                      </Pressable>
+                    </YStack>
+                  );
+                })
+              )}
             </YStack>
           </SectionCard>
 

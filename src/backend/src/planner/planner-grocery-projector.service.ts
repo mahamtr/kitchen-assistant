@@ -1,0 +1,250 @@
+import { Injectable } from '@nestjs/common';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model, Types } from 'mongoose';
+import {
+  GROCERY_LIST_MODEL,
+  GroceryListItemValue,
+  GroceryListRecord,
+  INVENTORY_ITEM_MODEL,
+  InventoryItemRecord,
+  RECIPE_MODEL,
+  RecipeRecord,
+  WeeklyPlanDayValue,
+} from '../data/schemas';
+import { normalizeName } from './planner.shared';
+
+@Injectable()
+export class PlannerGroceryProjector {
+  constructor(
+    @InjectModel(GROCERY_LIST_MODEL)
+    private readonly groceryListModel: Model<GroceryListRecord>,
+    @InjectModel(INVENTORY_ITEM_MODEL)
+    private readonly inventoryItemModel: Model<InventoryItemRecord>,
+    @InjectModel(RECIPE_MODEL)
+    private readonly recipeModel: Model<RecipeRecord>,
+  ) {}
+
+  async rebuildFromAcceptedPlan(
+    userId: Types.ObjectId,
+    weeklyPlanId: Types.ObjectId,
+    days: WeeklyPlanDayValue[],
+  ) {
+    const selectedRecipeIds = [
+      ...new Set(
+        days.flatMap((day) => day.meals.map((meal) => meal.recipeId.toString())),
+      ),
+    ];
+    const [selectedRecipes, inventoryItems] = await Promise.all([
+      this.recipeModel.find({
+        _id: { $in: selectedRecipeIds },
+        userId,
+      }),
+      this.inventoryItemModel.find({
+        userId,
+        status: { $ne: 'expired' },
+      }),
+    ]);
+    const aggregates = new Map<
+      string,
+      {
+        name: string;
+        quantity: { value: number; unit: string };
+        recipeIds: Set<string>;
+      }
+    >();
+
+    for (const recipe of selectedRecipes) {
+      for (const ingredient of recipe.ingredients) {
+        const quantity = ingredient.measurement;
+        const key = `${normalizeName(ingredient.name)}::${quantity.unit}`;
+        const existing = aggregates.get(key);
+
+        if (existing) {
+          existing.quantity.value += quantity.value;
+          existing.recipeIds.add(recipe._id.toString());
+          continue;
+        }
+
+        aggregates.set(key, {
+          name: ingredient.name,
+          quantity,
+          recipeIds: new Set([recipe._id.toString()]),
+        });
+      }
+    }
+
+    const weeklyPlanItems: GroceryListItemValue[] = Array.from(
+      aggregates.values(),
+    )
+      .sort((left, right) => left.name.localeCompare(right.name))
+      .map((entry) => ({
+        ...entry,
+        quantity: this.subtractInventoryQuantity(
+          entry.name,
+          entry.quantity,
+          inventoryItems,
+        ),
+      }))
+      .filter((entry) => entry.quantity.value > 0)
+      .map((entry) => ({
+        itemId: new Types.ObjectId(),
+        name: entry.name,
+        quantity: {
+          value: Number(entry.quantity.value.toFixed(2)),
+          unit: entry.quantity.unit,
+        },
+        status: 'to_buy',
+        source: 'weekly_plan',
+        inventoryItemId: null,
+        recipeIds: Array.from(entry.recipeIds).map(
+          (recipeId) => new Types.ObjectId(recipeId),
+        ),
+        notes: 'Needed for this week',
+      }));
+
+    const groceryList = await this.groceryListModel.findOne({
+      userId,
+      weeklyPlanId,
+    });
+
+    if (!groceryList) {
+      await this.groceryListModel.create({
+        userId,
+        weeklyPlanId,
+        status: 'active',
+        items: weeklyPlanItems,
+        lastComputedAt: new Date(),
+      });
+      return;
+    }
+
+    const preservedItems = groceryList.items.filter(
+      (item) => item.source !== 'weekly_plan',
+    );
+
+    groceryList.items = this.mergeWithPreservedItems(
+      weeklyPlanItems,
+      preservedItems,
+    );
+    groceryList.status = 'active';
+    groceryList.lastComputedAt = new Date();
+    await groceryList.save();
+  }
+
+  private mergeWithPreservedItems(
+    weeklyPlanItems: GroceryListItemValue[],
+    preservedItems: GroceryListItemValue[],
+  ) {
+    const mergedItems = [...weeklyPlanItems];
+    const weeklyItemIndexes = new Map<string, number>();
+
+    weeklyPlanItems.forEach((item, index) => {
+      weeklyItemIndexes.set(this.getItemKey(item.name, item.quantity.unit), index);
+    });
+
+    for (const preservedItem of preservedItems) {
+      const key = this.getItemKey(
+        preservedItem.name,
+        preservedItem.quantity.unit,
+      );
+      const weeklyItemIndex = weeklyItemIndexes.get(key);
+
+      if (
+        preservedItem.status === 'to_buy' &&
+        weeklyItemIndex !== undefined
+      ) {
+        const weeklyItem = mergedItems[weeklyItemIndex];
+        mergedItems[weeklyItemIndex] = {
+          ...weeklyItem,
+          itemId: preservedItem.itemId,
+          source: preservedItem.source,
+          inventoryItemId:
+            preservedItem.inventoryItemId ?? weeklyItem.inventoryItemId ?? null,
+          notes: this.mergeNotes(weeklyItem.notes, preservedItem.notes),
+        };
+        continue;
+      }
+
+      mergedItems.push(preservedItem);
+    }
+
+    return mergedItems;
+  }
+
+  private getItemKey(name: string, unit: string) {
+    return `${normalizeName(name)}::${unit}`;
+  }
+
+  private mergeNotes(
+    weeklyPlanNote: string | undefined,
+    preservedNote: string | undefined,
+  ) {
+    if (weeklyPlanNote && preservedNote && weeklyPlanNote !== preservedNote) {
+      return `${weeklyPlanNote} • ${preservedNote}`;
+    }
+
+    return weeklyPlanNote ?? preservedNote;
+  }
+
+  private subtractInventoryQuantity(
+    ingredientName: string,
+    quantity: { value: number; unit: string },
+    inventoryItems: InventoryItemRecord[],
+  ) {
+    const availableQuantity = inventoryItems.reduce((total, inventoryItem) => {
+      if (
+        !this.inventoryMatchesIngredient(inventoryItem, ingredientName, quantity.unit)
+      ) {
+        return total;
+      }
+
+      return total + (inventoryItem.quantity?.value ?? 0);
+    }, 0);
+
+    return {
+      value: Number(Math.max(quantity.value - availableQuantity, 0).toFixed(2)),
+      unit: quantity.unit,
+    };
+  }
+
+  private inventoryMatchesIngredient(
+    inventoryItem: InventoryItemRecord,
+    ingredientName: string,
+    ingredientUnit: string,
+  ) {
+    if (normalizeName(inventoryItem.name) !== normalizeName(ingredientName)) {
+      return false;
+    }
+
+    const inventoryUnit = inventoryItem.quantity?.unit;
+    const inventoryValue = inventoryItem.quantity?.value;
+    if (!inventoryUnit || inventoryValue == null || inventoryValue <= 0) {
+      return false;
+    }
+
+    if (inventoryUnit === ingredientUnit) {
+      return true;
+    }
+
+    return this.areCompatibleCountUnits(
+      normalizeName(ingredientName),
+      ingredientUnit,
+      inventoryUnit,
+    );
+  }
+
+  private areCompatibleCountUnits(
+    normalizedName: string,
+    ingredientUnit: string,
+    inventoryUnit: string,
+  ) {
+    if (!normalizedName.includes('egg')) {
+      return false;
+    }
+
+    return (
+      (ingredientUnit === 'egg' && inventoryUnit === 'piece') ||
+      (ingredientUnit === 'piece' && inventoryUnit === 'egg')
+    );
+  }
+}

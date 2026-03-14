@@ -18,7 +18,7 @@ export default function RecipeChatScreen() {
   const { generationId } = useLocalSearchParams<{ generationId: string }>();
   const pushToast = useUiStore((state) => state.pushToast);
   const [data, setData] = useState<RecipeGenerationResponse | null>(null);
-  const [message, setMessage] = useState('Looks good. Keep it high protein and add garlic.');
+  const [message, setMessage] = useState('');
   const [working, setWorking] = useState(false);
 
   const load = async () => {
@@ -30,7 +30,8 @@ export default function RecipeChatScreen() {
   }, [generationId]);
 
   const latestRevision = data?.latestRevision;
-  const chatMessages = useMemo(() => latestRevision?.chat.slice(-3) ?? [], [latestRevision]);
+  const latestOutput = latestRevision?.latestOutput ?? null;
+  const chatMessages = useMemo(() => latestRevision?.chat ?? [], [latestRevision]);
   const latestUserMessage = [...chatMessages].reverse().find((entry) => entry.role === 'user');
 
   return (
@@ -39,7 +40,7 @@ export default function RecipeChatScreen() {
       subtitle="Generate recipes from your weekly plan, favorites, and in-stock items"
       activeTab="recipes"
       footer={
-        data && latestRevision ? (
+        data && latestRevision && latestOutput ? (
           <StickyFooter>
             <XStack gap={10}>
               <ActionButton
@@ -75,37 +76,48 @@ export default function RecipeChatScreen() {
             </Paragraph>
           </SectionCard>
 
-          <SectionCard>
-            <XStack justifyContent="space-between" alignItems="center" gap={10}>
+          {latestOutput ? (
+            <SectionCard>
+              <XStack justifyContent="space-between" alignItems="center" gap={10}>
+                <Text color={palette.text} fontSize={16} fontWeight="700">
+                  Draft Recipe
+                </Text>
+                <Text color={palette.primary} fontSize={12} fontWeight="700">
+                  Revision {latestRevision.revisionNumber}
+                </Text>
+              </XStack>
+              <Text color={palette.textStrong} fontSize={15} fontWeight="700">
+                {latestOutput.title}
+              </Text>
+              <Paragraph color={palette.textSecondary} fontSize={13}>
+                {latestOutput.metadata.readyInMinutes} min • {latestOutput.metadata.calories} kcal •{' '}
+                {latestOutput.metadata.highlight}
+              </Paragraph>
+              <Paragraph color={palette.textSecondary} fontSize={13}>
+                Ingredients: {latestOutput.ingredients.map((ingredient) => ingredient.name).join(', ')}
+              </Paragraph>
+              {latestUserMessage ? (
+                <SectionCard tone="muted">
+                  <Paragraph color={palette.textSecondary} fontSize={13}>
+                    Requested edits applied: {latestUserMessage.content}
+                  </Paragraph>
+                </SectionCard>
+              ) : null}
+            </SectionCard>
+          ) : (
+            <SectionCard tone="muted">
               <Text color={palette.text} fontSize={16} fontWeight="700">
-                Draft Recipe
+                Start with a craving
               </Text>
-              <Text color={palette.primary} fontSize={12} fontWeight="700">
-                Version {latestRevision.revisionNumber}
-              </Text>
-            </XStack>
-            <Text color={palette.textStrong} fontSize={15} fontWeight="700">
-              {latestRevision.latestOutput.title}
-            </Text>
-            <Paragraph color={palette.textSecondary} fontSize={13}>
-              {latestRevision.latestOutput.metadata.readyInMinutes} min • {latestRevision.latestOutput.metadata.calories} kcal •{' '}
-              {latestRevision.latestOutput.metadata.highlight}
-            </Paragraph>
-            <Paragraph color={palette.textSecondary} fontSize={13}>
-              Ingredients: {latestRevision.latestOutput.ingredients.map((ingredient) => ingredient.name).join(', ')}
-            </Paragraph>
-            {latestUserMessage ? (
-              <SectionCard tone="muted">
-                <Paragraph color={palette.textSecondary} fontSize={13}>
-                  Requested edits applied: {latestUserMessage.content}
-                </Paragraph>
-              </SectionCard>
-            ) : null}
-          </SectionCard>
+              <Paragraph color={palette.textSecondary} fontSize={13}>
+                Chef will create the first draft after your first message.
+              </Paragraph>
+            </SectionCard>
+          )}
 
           <SectionCard>
             <Text color={palette.text} fontSize={15} fontWeight="700">
-              Chat preview
+              Chef chat
             </Text>
             <YStack gap={8}>
               {chatMessages.map((entry) => (
@@ -133,25 +145,34 @@ export default function RecipeChatScreen() {
             <TextField
               value={message}
               onChangeText={setMessage}
-              placeholder="Ask for another variation..."
+              placeholder="What would you like to eat?"
               multiline
             />
             <ActionButton
               variant="secondary"
               onPress={async () => {
                 setWorking(true);
-                await recipesService.createGenerationRevision(data.generation.id, { userMessage: message });
-                setMessage('');
-                await load();
-                setWorking(false);
+                try {
+                  await recipesService.createGenerationRevision(data.generation.id, { userMessage: message });
+                  setMessage('');
+                  await load();
+                } finally {
+                  setWorking(false);
+                }
               }}
               disabled={working || !message.trim()}
             >
-              {working ? 'Updating...' : 'Ask for another variation'}
+              {working
+                ? 'Updating...'
+                : latestOutput
+                  ? 'Ask for another variation'
+                  : 'Generate first draft'}
             </ActionButton>
             <SectionCard tone="muted">
               <Paragraph color={palette.textSecondary} fontSize={13}>
-                Accept Draft to save this recipe, or go back and ask for another variation.
+                {latestOutput
+                  ? 'Accept Draft to save this recipe, or go back and ask for another variation.'
+                  : 'Tell Chef what you want to eat, then the first recipe draft will appear here.'}
               </Paragraph>
             </SectionCard>
           </SectionCard>

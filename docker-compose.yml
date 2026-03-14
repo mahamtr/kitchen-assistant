@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   mongo:
     image: mongo:6.0
@@ -21,7 +19,7 @@ services:
       - "3000:3000"
     environment:
       PORT: 3000
-      MONGO_URI: mongodb://root:example@mongo:27017/?authSource=admin
+      MONGO_URI: mongodb://root:example@mongo:27017/kitchen?authSource=admin
     depends_on:
       - mongo
 

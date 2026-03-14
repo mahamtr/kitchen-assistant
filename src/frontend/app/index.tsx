@@ -2,15 +2,13 @@ import React, { useEffect, useState } from 'react';
 import { useRouter } from 'expo-router';
 import { YStack, Text } from 'tamagui';
 import { useUserStore } from '../src/lib/store/userStore';
-import { useMockAppStore } from '../src/lib/mock/mockStore';
 import { palette } from '../src/components/ui/primitives';
 
 export default function IndexRoute() {
   const router = useRouter();
   const status = useUserStore((state) => state.status);
-  const appUserId = useUserStore((state) => state.appUserId);
-  const hasCompletedOnboarding = useMockAppStore((state) =>
-    appUserId ? Boolean(state.data.preferences[appUserId]) : false,
+  const hasCompletedOnboarding = useUserStore(
+    (state) => state.hasCompletedOnboarding,
   );
   const [loading, setLoading] = useState(true);
 

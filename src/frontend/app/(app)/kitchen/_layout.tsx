@@ -1,5 +1,5 @@
 import { Stack } from 'expo-router';
-import { mainStackScreenOptions, pushStackScreenOptions, sheetStackScreenOptions } from '../../routeOptions';
+import { mainStackScreenOptions, pushStackScreenOptions, sheetStackScreenOptions } from '../../../navigation/routeOptions';
 
 export default function KitchenRoutesLayout() {
   return (

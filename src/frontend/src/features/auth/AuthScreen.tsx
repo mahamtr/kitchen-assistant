@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Platform, Pressable, ScrollView } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Paragraph, Text, XStack, YStack } from 'tamagui';
 import { authService } from '../../lib/services';
 import {
@@ -16,10 +16,21 @@ type AuthMode = 'login' | 'signup' | 'reset';
 
 export default function AuthScreen({ mode }: { mode: AuthMode }) {
   const router = useRouter();
+  const params = useLocalSearchParams<{
+    resetToken?: string | string[];
+    token?: string | string[];
+  }>();
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const initialResetToken =
+    typeof params.resetToken === 'string'
+      ? params.resetToken
+      : typeof params.token === 'string'
+        ? params.token
+        : '';
+  const [resetToken, setResetToken] = useState(initialResetToken);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -59,9 +70,15 @@ export default function AuthScreen({ mode }: { mode: AuthMode }) {
       }
 
       if (password || confirmPassword) {
+        if (!resetToken.trim()) {
+          throw new Error('Recovery token is required to update your password.');
+        }
+
         const result = await authService.updatePassword({
+          email,
           newPassword: password,
           confirmPassword,
+          resetToken: resetToken.trim(),
         });
         setMessage(result.message);
       } else {
@@ -70,19 +87,6 @@ export default function AuthScreen({ mode }: { mode: AuthMode }) {
       }
     } catch (caughtError) {
       setError(caughtError instanceof Error ? caughtError.message : 'Something went wrong.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const continueWithGoogle = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      await authService.signInWithGoogle();
-      setMessage('Google sign-in was opened through Supabase.');
-    } catch (caughtError) {
-      setError(caughtError instanceof Error ? caughtError.message : 'Google sign-in failed.');
     } finally {
       setLoading(false);
     }
@@ -152,6 +156,13 @@ export default function AuthScreen({ mode }: { mode: AuthMode }) {
             {isReset ? (
               <YStack gap={8}>
                 <TextField
+                  label="Recovery token"
+                  value={resetToken}
+                  onChangeText={setResetToken}
+                  placeholder="Paste token or code"
+                  autoCapitalize="none"
+                />
+                <TextField
                   label="New password"
                   value={password}
                   onChangeText={setPassword}
@@ -207,21 +218,19 @@ export default function AuthScreen({ mode }: { mode: AuthMode }) {
                 !email ||
                 (isLogin && !password) ||
                 (isSignup && (!password || !fullName)) ||
-                (isReset && !email)
+                (isReset &&
+                  (!email ||
+                    ((password || confirmPassword) &&
+                      (!password || !confirmPassword || !resetToken.trim()))))
               }
             >
               {loading ? 'Working...' : isLogin ? 'Sign in' : isSignup ? 'Create account' : 'Send / Update password'}
             </ActionButton>
 
             {!isReset ? (
-              <>
-                <Paragraph color={palette.textMuted} textAlign="center" fontSize={12}>
-                  or
-                </Paragraph>
-                <ActionButton variant="secondary" onPress={continueWithGoogle} disabled={loading}>
-                  Continue with Google
-                </ActionButton>
-              </>
+              <Paragraph color={palette.textMuted} textAlign="center" fontSize={12}>
+                Email and password sign-in is currently the supported login flow.
+              </Paragraph>
             ) : null}
 
             <ActionButton
@@ -239,8 +248,8 @@ export default function AuthScreen({ mode }: { mode: AuthMode }) {
                 What happens next
               </Text>
               <Paragraph color={palette.textSecondary} fontSize={13} lineHeight={18}>
-                After authentication, the app takes you through onboarding and seeds the planner, kitchen, OCR, and
-                recipe flows with mock data.
+                After authentication, the app takes you through onboarding and prepares your planner, kitchen, OCR,
+                and recipe flows with starter data in the backend.
               </Paragraph>
             </SectionCard>
           ) : null}

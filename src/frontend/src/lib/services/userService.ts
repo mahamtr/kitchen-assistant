@@ -1,57 +1,23 @@
-import { getMockDataSnapshot, useMockAppStore } from '../mock/mockStore';
-import { requireAppUserId, withDelay } from './utils';
+import { apiGet, apiPost } from '../api';
 import type { BootstrapSummary, SessionUserSummary, UserPreferenceResponse, UserProfileResponse } from '../types/contracts';
 
-function bootstrapFromSession(authUser: SessionUserSummary): string {
-  return useMockAppStore.getState().ensureUserFromSession(authUser);
+async function bootstrapFromSession(authUser: SessionUserSummary): Promise<UserProfileResponse> {
+  return apiPost('/users/me/bootstrap', {
+    email: authUser.email,
+    displayName: authUser.displayName,
+  });
 }
 
 async function getMe(): Promise<UserProfileResponse> {
-  const userId = requireAppUserId();
-  const user = getMockDataSnapshot().users[userId];
-  if (!user) {
-    throw new Error('User not found.');
-  }
-
-  return withDelay({
-    id: user.id,
-    supabaseUserId: user.supabaseUserId,
-    email: user.email ?? null,
-    displayName: user.displayName ?? null,
-    status: user.status,
-  });
+  return apiGet('/users/me');
 }
 
 async function getPreferences(): Promise<UserPreferenceResponse | null> {
-  const userId = requireAppUserId();
-  const preference = getMockDataSnapshot().preferences[userId];
-  if (!preference) {
-    return withDelay(null);
-  }
-
-  return withDelay({
-    id: preference.id,
-    version: preference.version,
-    source: preference.source,
-    profile: preference.profile,
-  });
+  return apiGet('/users/me/preferences');
 }
 
 async function getBootstrapSummary(): Promise<BootstrapSummary> {
-  const userId = requireAppUserId();
-  const snapshot = getMockDataSnapshot();
-  const user = snapshot.users[userId];
-  if (!user) {
-    throw new Error('User not found.');
-  }
-
-  return withDelay({
-    user,
-    preference: snapshot.preferences[userId],
-    currentPlan: snapshot.currentWeeklyPlanByUserId[userId]
-      ? snapshot.weeklyPlans[snapshot.currentWeeklyPlanByUserId[userId]]
-      : undefined,
-  });
+  return apiGet('/users/me/bootstrap-summary');
 }
 
 export const userService = {

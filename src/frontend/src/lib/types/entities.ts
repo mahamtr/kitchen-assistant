@@ -132,10 +132,41 @@ export interface WeeklyPlanDay {
   meals: WeeklyPlanMeal[];
 }
 
+export interface WeeklyPlanRevisionExistingMeal {
+  slot: MealSlot;
+  source: 'existing';
+  recipeId: EntityId;
+  title: string;
+  shortLabel: string;
+  calories: number;
+  tags: string[];
+}
+
+export interface WeeklyPlanRevisionDraftMeal {
+  slot: MealSlot;
+  source: 'draft';
+  draftRecipeKey: string;
+  title: string;
+  shortLabel: string;
+  calories: number;
+  tags: string[];
+}
+
+export type WeeklyPlanRevisionMeal =
+  | WeeklyPlanRevisionExistingMeal
+  | WeeklyPlanRevisionDraftMeal;
+
+export interface WeeklyPlanRevisionDay {
+  dayKey: WeekdayKey;
+  label: string;
+  meals: WeeklyPlanRevisionMeal[];
+}
+
 export interface WeeklyPlanRevisionOutput {
   badge: string;
   rationale: string;
-  days: WeeklyPlanDay[];
+  draftRecipes: PlannerDraftRecipe[];
+  days: WeeklyPlanRevisionDay[];
 }
 
 export interface WeeklyPlan {
@@ -174,6 +205,11 @@ export interface GroceryQuantity {
   unit: string;
 }
 
+export interface MeasurementValue {
+  value: number;
+  unit: string;
+}
+
 export interface GroceryListItem {
   itemId: EntityId;
   name: string;
@@ -200,6 +236,7 @@ export interface RecipeIngredient {
   id: EntityId;
   name: string;
   quantity: string;
+  measurement: MeasurementValue;
   note?: string;
 }
 
@@ -220,6 +257,10 @@ export interface RecipeDraftOutput {
   ingredients: RecipeIngredient[];
   steps: RecipeStep[];
   tags: string[];
+}
+
+export interface PlannerDraftRecipe extends RecipeDraftOutput {
+  draftRecipeKey: string;
 }
 
 export interface Recipe {
@@ -256,7 +297,7 @@ export interface RecipeGenerationRevision {
   userId: EntityId;
   revisionNumber: number;
   chat: ChatMessage[];
-  latestOutput: RecipeDraftOutput;
+  latestOutput: RecipeDraftOutput | null;
   createdAt: string;
   updatedAt: string;
 }

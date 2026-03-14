@@ -62,16 +62,10 @@ export default function RecipesScreen() {
         <StickyFooter>
           <ActionButton
             onPress={async () => {
-              const activeGeneration = await recipesService.getActiveGeneration();
-              if (activeGeneration) {
-                router.push(`/recipes/chat/${activeGeneration.generation.id}`);
-                return;
-              }
-
-              const generation = await recipesService.startGeneration('I want a high-protein dinner under 30 minutes.');
+              const generation = await recipesService.startGeneration();
               pushToast({
                 title: 'Chef chat started',
-                description: 'A draft recipe was created from the current weekly plan and inventory.',
+                description: 'Chef is ready. Start by saying what you want to eat.',
                 tone: 'success',
               });
               router.push(`/recipes/chat/${generation.generation.id}`);

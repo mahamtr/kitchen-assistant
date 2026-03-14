@@ -13,11 +13,18 @@ import {
   TextField,
   palette,
 } from '../../components/ui/primitives';
+import { MeasurementUnitDropdown } from './components/MeasurementUnitDropdown';
 import { useKeyboardMetrics } from '../../hooks/useKeyboardVisible';
 import { kitchenService } from '../../lib/services';
 import { useUiStore } from '../../lib/store/uiStore';
 import type { InventoryItemDetailResponse, KitchenView } from '../../lib/types/contracts';
 import type { InventoryLocation, InventoryStatus } from '../../lib/types/entities';
+import {
+  formatMeasurement,
+  isCountMeasurementUnit,
+  isSupportedMeasurementUnit,
+  normalizeEditableMeasurementUnit,
+} from '../../lib/utils/measurement';
 
 const VIEW_LABEL: Record<KitchenView, string> = {
   'to-buy': 'To Buy',
@@ -25,12 +32,44 @@ const VIEW_LABEL: Record<KitchenView, string> = {
   expiring: 'Expiring',
 };
 
+const INVENTORY_EDIT_UNIT_GROUPS = [
+  {
+    label: 'Mass',
+    units: ['g', 'kg'],
+  },
+  {
+    label: 'Volume',
+    units: ['ml', 'l'],
+  },
+  {
+    label: 'Count',
+    units: ['piece', 'clove', 'can', 'jar', 'pack', 'fillet'],
+  },
+] as const;
+
+const INVENTORY_EDIT_UNITS = INVENTORY_EDIT_UNIT_GROUPS.flatMap((group) => [
+  ...group.units,
+]);
+
+function normalizeInventoryEditUnit(unit: string | null | undefined) {
+  const normalizedUnit = normalizeEditableMeasurementUnit(unit);
+  return INVENTORY_EDIT_UNITS.includes(normalizedUnit)
+    ? normalizedUnit
+    : 'piece';
+}
+
 function Divider() {
   return <YStack height={1} backgroundColor={palette.border} />;
 }
 
 function quantitySummary(value: string, unit: string) {
-  return `${value || '0'} ${unit || 'item'}`.trim();
+  const parsed = Number(value);
+
+  if (!Number.isFinite(parsed)) {
+    return `${value || '0'} ${unit || 'piece'}`.trim();
+  }
+
+  return formatMeasurement(parsed, unit || 'piece', '0 piece');
 }
 
 function dayDiff(dateString?: string | null) {
@@ -83,7 +122,7 @@ export default function KitchenItemScreen() {
         const nextDetail = await kitchenService.getInventoryItem(itemId);
         setDetail(nextDetail);
         setQuantityValue(String(nextDetail.item.quantity?.value ?? ''));
-        setQuantityUnit(nextDetail.item.quantity?.unit ?? '');
+        setQuantityUnit(normalizeInventoryEditUnit(nextDetail.item.quantity?.unit));
         setLocation(nextDetail.item.location);
         setStatus(nextDetail.item.status);
 
@@ -107,14 +146,43 @@ export default function KitchenItemScreen() {
     return detail.item.status === 'use_soon' || detail.item.status === 'expired' ? 'expiring' : 'in-stock';
   }, [detail]);
 
+  const parsedQuantityValue = Number(quantityValue);
+  const quantityIsValid =
+    quantityValue.trim().length > 0 &&
+    Number.isFinite(parsedQuantityValue) &&
+    parsedQuantityValue > 0 &&
+    (!isCountMeasurementUnit(quantityUnit) || Number.isInteger(parsedQuantityValue));
+
   const save = async () => {
     if (!detail) {
       return;
     }
+
+    if (!quantityIsValid) {
+      pushToast({
+        title: 'Enter an exact quantity',
+        description: isCountMeasurementUnit(quantityUnit)
+          ? 'Count units must use a whole number.'
+          : 'Use a positive numeric quantity before saving.',
+        tone: 'warning',
+      });
+      return;
+    }
+
+    if (quantityUnit.trim() && !isSupportedMeasurementUnit(quantityUnit)) {
+      pushToast({
+        title: 'Unsupported unit',
+        description:
+          'Use g, kg, ml, l, piece, clove, egg, can, jar, pack, fillet, or slice.',
+        tone: 'warning',
+      });
+      return;
+    }
+
     await kitchenService.patchInventoryItem(detail.item.id, {
       quantity: {
-        value: Number(quantityValue || 0),
-        unit: quantityUnit || null,
+        value: quantityValue.trim() ? Number(quantityValue) : null,
+        unit: quantityUnit.trim() || null,
       },
       location,
       status,
@@ -221,14 +289,25 @@ export default function KitchenItemScreen() {
                   <Text color={palette.textSecondary} fontSize={12} fontWeight="700">
                     Quantity & Unit
                   </Text>
-                  <XStack gap={10}>
-                    <YStack flex={1}>
-                      <TextField label="Quantity" value={quantityValue} onChangeText={setQuantityValue} placeholder="300" />
-                    </YStack>
-                    <YStack flex={1}>
-                      <TextField label="Unit" value={quantityUnit} onChangeText={setQuantityUnit} placeholder="g" />
-                    </YStack>
-                  </XStack>
+                  <TextField
+                    label="Quantity"
+                    value={quantityValue}
+                    onChangeText={setQuantityValue}
+                    placeholder="300"
+                    keyboardType={isCountMeasurementUnit(quantityUnit) ? 'number-pad' : 'decimal-pad'}
+                  />
+                  <Paragraph color={palette.textSecondary} fontSize={12}>
+                    {isCountMeasurementUnit(quantityUnit)
+                      ? 'Count units save as whole numbers only.'
+                      : 'Use a positive numeric quantity. kg and l are normalized on save.'}
+                  </Paragraph>
+                  <MeasurementUnitDropdown
+                    value={quantityUnit}
+                    onValueChange={setQuantityUnit}
+                    groups={INVENTORY_EDIT_UNIT_GROUPS}
+                    accessibilityLabel="Inventory unit dropdown"
+                    helperText="Pick a grouped exact unit. egg and slice are not editable here."
+                  />
                 </YStack>
 
                 <InfoLine label="Expiry" value={dayDiff(detail.item.dates?.expiresAt)} valueTone="warning" />
@@ -236,7 +315,9 @@ export default function KitchenItemScreen() {
                 <InfoLine label="Status" value={status.replace('_', ' ')} />
 
                 <YStack gap={8}>
-                  <ActionButton onPress={save}>Save Changes</ActionButton>
+                  <ActionButton onPress={save} disabled={!quantityIsValid}>
+                    Save Changes
+                  </ActionButton>
                   <ActionButton
                     variant="success"
                     onPress={async () => {

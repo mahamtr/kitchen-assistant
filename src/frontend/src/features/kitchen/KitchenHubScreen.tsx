@@ -22,6 +22,7 @@ import type {
   KitchenView,
 } from '../../lib/types/contracts';
 import type { InventoryItem } from '../../lib/types/entities';
+import { formatMeasurement } from '../../lib/utils/measurement';
 
 const VIEW_TO_LABEL: Record<KitchenView, string> = {
   'to-buy': 'To Buy',
@@ -34,11 +35,7 @@ function Divider() {
 }
 
 function quantityLabel(value: number | null | undefined, unit: string | null | undefined) {
-  if (value == null || !unit) {
-    return '1 item';
-  }
-
-  return `${value} ${unit}`;
+  return formatMeasurement(value, unit, '1 piece');
 }
 
 function dayDiff(dateString?: string | null) {

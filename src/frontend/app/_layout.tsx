@@ -1,72 +1,43 @@
 import React, { useEffect } from 'react';
-import type { Session } from '@supabase/supabase-js';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { ActivityIndicator } from 'react-native';
 import { Text, YStack } from 'tamagui';
 import ThemeProvider from '../src/theme';
-import { supabase } from '../src/lib/supacase';
 import { useUserStore } from '../src/lib/store/userStore';
 import ToastHost from '../src/components/ui/ToastHost';
 import { palette } from '../src/components/ui/primitives';
-import { userService } from '../src/lib/services';
-import { useMockAppStore } from '../src/lib/mock/mockStore';
-import { rootStackScreenOptions } from './routeOptions';
-
-function toSessionUser(session: Session) {
-  return {
-    supabaseUserId: session.user.id,
-    email: session.user.email ?? null,
-    displayName:
-      (typeof session.user.user_metadata?.displayName === 'string' && session.user.user_metadata.displayName) ||
-      (typeof session.user.user_metadata?.fullName === 'string' && session.user.user_metadata.fullName) ||
-      (typeof session.user.user_metadata?.name === 'string' && session.user.user_metadata.name) ||
-      session.user.email?.split('@')[0] ||
-      'Kitchen Assistant User',
-  };
-}
+import { authService } from '../src/lib/services';
+import { rootStackScreenOptions } from '../navigation/routeOptions';
 
 export default function RootLayout() {
   const router = useRouter();
   const segments = useSegments();
   const status = useUserStore((state) => state.status);
   const appUserId = useUserStore((state) => state.appUserId);
-  const setAuthenticated = useUserStore((state) => state.setAuthenticated);
   const setUnauthenticated = useUserStore((state) => state.setUnauthenticated);
-  const hasCompletedOnboarding = useMockAppStore((state) =>
-    appUserId ? Boolean(state.data.preferences[appUserId]) : false,
+  const hasCompletedOnboarding = useUserStore(
+    (state) => state.hasCompletedOnboarding,
   );
 
   useEffect(() => {
     let mounted = true;
 
-    const syncSession = async (session: Session | null) => {
-      if (!mounted) {
-        return;
+    const loadSession = async () => {
+      try {
+        await authService.restoreSession();
+      } catch {
+        if (mounted) {
+          setUnauthenticated();
+        }
       }
-
-      if (!session) {
-        setUnauthenticated();
-        return;
-      }
-
-      const authUser = toSessionUser(session);
-      const nextAppUserId = userService.bootstrapFromSession(authUser);
-      setAuthenticated(authUser, nextAppUserId);
     };
 
-    supabase.auth.getSession().then(({ data }) => {
-      void syncSession(data.session);
-    });
-
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
-      void syncSession(session);
-    });
+    void loadSession();
 
     return () => {
       mounted = false;
-      sub.subscription.unsubscribe();
     };
-  }, [setAuthenticated, setUnauthenticated]);
+  }, [setUnauthenticated]);
 
   useEffect(() => {
     if (status === 'loading') {

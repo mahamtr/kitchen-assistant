@@ -15,6 +15,7 @@ import {
 } from '../../components/ui/primitives';
 import { useKeyboardMetrics } from '../../hooks/useKeyboardVisible';
 import { useUiStore } from '../../lib/store/uiStore';
+import { useUserStore } from '../../lib/store/userStore';
 
 function OnboardingFrame({
   title,
@@ -79,6 +80,9 @@ function reviewLines(draft: OnboardingDraft) {
 export default function OnboardingScreen({ step }: { step: number }) {
   const router = useRouter();
   const pushToast = useUiStore((state) => state.pushToast);
+  const setOnboardingCompleted = useUserStore(
+    (state) => state.setOnboardingCompleted,
+  );
   const [questions, setQuestions] = useState<OnboardingQuestion[]>([]);
   const [draft, setDraft] = useState<OnboardingDraft | null>(null);
   const [loading, setLoading] = useState(true);
@@ -139,6 +143,7 @@ export default function OnboardingScreen({ step }: { step: number }) {
     setError(null);
     try {
       await onboardingService.complete();
+      setOnboardingCompleted(true);
       pushToast({
         title: 'Profile saved',
         description: 'Your weekly plan and kitchen data are now ready.',

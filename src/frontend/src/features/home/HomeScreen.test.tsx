@@ -67,4 +67,40 @@ describe('HomeScreen navigation', () => {
     expect(mockReplace).toHaveBeenCalledWith('/planner');
     expect(mockPush).toHaveBeenCalledWith('/recipes/recipe-breakfast');
   });
+
+  it('renders meals with a missing slot without crashing', async () => {
+    homeService.getToday.mockResolvedValueOnce({
+      todayLabel: 'Monday',
+      target: {
+        calories: '2,100 kcal',
+        macros: 'P150 C180 F70',
+      },
+      todayMeals: [
+        {
+          recipeId: 'recipe-lunch',
+          title: 'Fallback lunch',
+          shortLabel: 'Fallback lunch',
+          calories: 510,
+          tags: [],
+        },
+      ],
+      importantInfo: {
+        title: 'Important Information',
+        alerts: ['Use spinach first.'],
+        ctaLabel: 'Open Weekly Plan',
+      },
+      shortcuts: [],
+    });
+
+    renderWithProviders(<HomeScreen />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Meal 1')).toBeTruthy();
+      expect(screen.getByText('Fallback lunch')).toBeTruthy();
+    });
+
+    fireEvent.press(screen.getByText('Fallback lunch'));
+
+    expect(mockPush).toHaveBeenCalledWith('/recipes/recipe-lunch');
+  });
 });
