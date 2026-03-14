@@ -104,8 +104,8 @@ Recommended aggregate focus:
 
 Planner AI implementation rules:
 
-- Weekly-plan generation and revision chat are backend-owned workflows.
-- Backend sends the normalized saved preference profile plus revision chat context to OpenAI.
+- Weekly-plan generation and revision orchestration is backend-owned.
+- Full planner chat transcripts are not persisted by default; prompt context is built from durable draft state plus the current user turn.
 - OpenAI output must be validated as strict JSON before persisting any planner revision or accepted plan update.
 - Planner revisions may mix existing saved recipes with brand-new inline recipe drafts.
 - Inline planner draft recipes live only inside `WeeklyPlanRevision.latestOutput` until the user accepts the revision.
@@ -117,8 +117,9 @@ Planner AI implementation rules:
 - Recipe and grocery quantities must use exact structured measurements as source of truth.
 - Canonical stored units are `g`, `ml`, and exact count units; `kg` and `l` are accepted input/display conveniences, not stored base units.
 - Backend must never rely on parsing formatted quantity strings once a structured measurement is available.
-- Recipe chef-chat sessions may start empty with an assistant greeting and no draft recipe yet; the first user turn creates the first recipe draft revision.
-- Recipe chef-chat draft generation is backend-owned and OpenAI-backed: backend assembles prompt context from preferences, weekly-plan recipes, favorites, recent recipe history, and inventory, then validates strict JSON draft output before persisting any revision.
+- Recipe chef-chat sessions may start empty with no draft recipe yet; the first user turn creates the first recipe draft revision.
+- Recipe chef-chat transcripts are not durably persisted by default; backend assembles prompt context from durable state (preferences, weekly-plan recipes, favorites, recent recipe history, inventory, and current draft) plus the current user turn.
+- Recipe draft output remains backend-owned and OpenAI-backed, and is validated as strict JSON before persistence.
 
 ## 3) CQRS Strategy (Pragmatic)
 

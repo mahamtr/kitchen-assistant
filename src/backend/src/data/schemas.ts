@@ -550,7 +550,7 @@ export interface WeeklyPlanRevisionRecord {
   weeklyPlanId: EntityId;
   userId: EntityId;
   revisionNumber: number;
-  chat: ChatMessageValue[];
+  chat?: ChatMessageValue[];
   latestOutput: WeeklyPlanRevisionOutputValue;
   createdAt: Date;
   updatedAt: Date;
@@ -562,7 +562,7 @@ export const WeeklyPlanRevisionSchema = new Schema<WeeklyPlanRevisionRecord>(
     weeklyPlanId: { type: Schema.Types.ObjectId, required: true },
     userId: { type: Schema.Types.ObjectId, required: true },
     revisionNumber: { type: Number, required: true },
-    chat: { type: [chatMessageSchema], default: [] },
+    chat: { type: [chatMessageSchema], default: undefined },
     latestOutput: { type: weeklyPlanRevisionOutputSchema, required: true },
   },
   {
@@ -693,7 +693,7 @@ export interface RecipeGenerationRevisionRecord {
   generationId: EntityId;
   userId: EntityId;
   revisionNumber: number;
-  chat: ChatMessageValue[];
+  chat?: ChatMessageValue[];
   latestOutput: RecipeDraftOutputValue | null;
   createdAt: Date;
   updatedAt: Date;
@@ -706,7 +706,7 @@ export const RecipeGenerationRevisionSchema =
       generationId: { type: Schema.Types.ObjectId, required: true },
       userId: { type: Schema.Types.ObjectId, required: true },
       revisionNumber: { type: Number, required: true },
-      chat: { type: [chatMessageSchema], default: [] },
+      chat: { type: [chatMessageSchema], default: undefined },
       latestOutput: { type: recipeDraftOutputSchema, default: null },
     },
     {

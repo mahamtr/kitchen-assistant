@@ -223,29 +223,6 @@ export class RecipesService {
       generationId: generation._id,
       userId: user._id,
       revisionNumber: 1,
-      chat: trimmedMessage
-        ? [
-            {
-              role: 'user',
-              content: trimmedMessage,
-              timestamp: new Date(),
-            },
-            {
-              role: 'assistant',
-              content: this.buildRecipeAssistantMessage(
-                initialDraft!,
-                'generate',
-              ),
-              timestamp: new Date(),
-            },
-          ]
-        : [
-            {
-              role: 'assistant',
-              content: 'What would you like to eat?',
-              timestamp: new Date(),
-            },
-          ],
       latestOutput: initialDraft,
     });
 
@@ -342,22 +319,6 @@ export class RecipesService {
       generationId: generation._id,
       userId: user._id,
       revisionNumber,
-      chat: [
-        ...latestRevision.chat,
-        {
-          role: 'user',
-          content: trimmedMessage,
-          timestamp: new Date(),
-        },
-        {
-          role: 'assistant',
-          content: this.buildRecipeAssistantMessage(
-            nextDraft,
-            latestRevision.latestOutput ? 'revise' : 'generate',
-          ),
-          timestamp: new Date(),
-        },
-      ],
       latestOutput: nextDraft,
     });
 
@@ -633,7 +594,7 @@ export class RecipesService {
       generationId: revision.generationId.toString(),
       userId: revision.userId.toString(),
       revisionNumber: revision.revisionNumber,
-      chat: revision.chat.map((entry) => ({
+      chat: (revision.chat ?? []).map((entry) => ({
         id: entry._id?.toString() ?? '',
         role: entry.role,
         content: entry.content,
@@ -861,14 +822,7 @@ export class RecipesService {
       currentDraft: params.latestRevision?.latestOutput
         ? this.serializeDraftForAi(params.latestRevision.latestOutput)
         : null,
-      chat: params.latestRevision?.chat.map((entry) => ({
-        role:
-          (entry.role === 'assistant' ? 'assistant' : 'user') as
-            | 'assistant'
-            | 'user',
-        content: entry.content,
-        timestamp: entry.timestamp.toISOString(),
-      })),
+      chat: [],
       userMessage: params.userMessage,
     };
   }
@@ -970,14 +924,4 @@ export class RecipesService {
     };
   }
 
-  private buildRecipeAssistantMessage(
-    draft: NonNullable<RecipeGenerationRevisionRecord['latestOutput']>,
-    mode: 'generate' | 'revise',
-  ) {
-    if (mode === 'generate') {
-      return `Here is a first draft for ${draft.title}. ${draft.summary}`;
-    }
-
-    return `Updated the draft to ${draft.title}. ${draft.summary}`;
-  }
 }

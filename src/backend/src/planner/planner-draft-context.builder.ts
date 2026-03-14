@@ -51,14 +51,7 @@ export class PlannerDraftContextBuilder {
       preferences: params.preferences,
       allowedRecipes: params.allowedRecipes,
       currentDraft: this.getBaseDraft(params.plan, params.latestRevision),
-      chat: params.latestRevision.chat.map((entry) => ({
-        role:
-          (entry.role === 'assistant' ? 'assistant' : 'user') as
-            | 'assistant'
-            | 'user',
-        content: entry.content,
-        timestamp: entry.timestamp.toISOString(),
-      })),
+      chat: [],
       userMessage: params.userMessage,
     };
   }

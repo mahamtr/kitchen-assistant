@@ -204,7 +204,7 @@ export class PlannerReadService {
     return {
       id: revision._id.toString(),
       revisionNumber: revision.revisionNumber,
-      chat: revision.chat.map((entry) => ({
+      chat: (revision.chat ?? []).map((entry) => ({
         id: entry._id?.toString() ?? '',
         role: entry.role,
         content: entry.content,

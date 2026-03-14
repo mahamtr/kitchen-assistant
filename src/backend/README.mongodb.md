@@ -132,7 +132,7 @@ Suggested indexes:
 
 ## 5) Entity: WeeklyPlanRevision
 
-LLM chat revision history for a weekly plan.
+LLM revision history for a weekly plan (durable draft state; transcript persistence optional).
 
 | Field            | Type       | Required | Notes                                                               |
 | ---------------- | ---------- | -------- | ------------------------------------------------------------------- |
@@ -140,7 +140,7 @@ LLM chat revision history for a weekly plan.
 | `weeklyPlanId`   | `ObjectId` | yes      | Ref -> `WeeklyPlan._id`                                             |
 | `userId`         | `ObjectId` | yes      | Ref -> `User._id`                                                   |
 | `revisionNumber` | `number`   | yes      | Sequential per plan                                                 |
-| `chat`           | `array`    | yes      | Conversation messages (`role`, `content`, `timestamp`)              |
+| `chat`           | `array`    | no       | Optional legacy conversation messages (`role`, `content`, `timestamp`) |
 | `latestOutput`   | `object`   | yes      | Latest OpenAI JSON weekly-plan draft (`badge`, `rationale`, `draftRecipes`, `days`) |
 | `createdAt`      | `Date`     | auto     | Timestamp                                                           |
 | `updatedAt`      | `Date`     | auto     | Timestamp                                                           |
@@ -152,7 +152,8 @@ Suggested unique index:
 Notes:
 
 - Revision `1` is created when onboarding completes and the first weekly plan is generated.
-- Each planner chat turn creates the next revision number and stores the full updated draft output.
+- Each planner user turn creates the next revision number and stores the updated `latestOutput` draft state.
+- Full planner transcripts are UI/session memory by default and are not durably stored for new revisions.
 - `latestOutput.days[].meals[]` may contain either:
   - existing meal refs: `source='existing'` + `recipeId`
   - inline draft meal refs: `source='draft'` + `draftRecipeKey`
@@ -161,7 +162,7 @@ Notes:
 
 ## 5.1) Entity: RecipeGeneration
 
-Server-managed recipe AI chat session (same pattern as weekly plan revisions).
+Server-managed recipe AI generation session (same revision pattern as weekly plans).
 
 | Field              | Type                                    | Required | Notes                                                 |
 | ------------------ | --------------------------------------- | -------- | ----------------------------------------------------- |
@@ -186,7 +187,7 @@ Notes:
 
 ## 5.2) Entity: RecipeGenerationRevision
 
-LLM revision history for a recipe generation session.
+LLM revision history for a recipe generation session (durable draft state; transcript persistence optional).
 
 | Field            | Type       | Required | Notes                                                           |
 | ---------------- | ---------- | -------- | --------------------------------------------------------------- |
@@ -194,7 +195,7 @@ LLM revision history for a recipe generation session.
 | `generationId`   | `ObjectId` | yes      | Ref -> `RecipeGeneration._id`                                   |
 | `userId`         | `ObjectId` | yes      | Ref -> `User._id`                                               |
 | `revisionNumber` | `number`   | yes      | Sequential per generation                                       |
-| `chat`           | `array`    | yes      | Server-maintained conversation (`role`, `content`, `timestamp`) |
+| `chat`           | `array`    | no       | Optional legacy conversation (`role`, `content`, `timestamp`) |
 | `latestOutput`   | `object \| null`   | no       | Latest LLM JSON recipe draft output; null before the first draft exists |
 | `createdAt`      | `Date`     | auto     | Timestamp                                                       |
 | `updatedAt`      | `Date`     | auto     | Timestamp                                                       |
@@ -205,8 +206,9 @@ Suggested unique index:
 
 Notes:
 
-- Recipe chef-chat sessions may start with revision `1` containing only the assistant greeting and `latestOutput = null`.
+- Recipe chef-chat sessions may start with revision `1` and `latestOutput = null`.
 - The first user request creates the first real recipe draft revision.
+- Full chef-chat transcripts are UI/session memory by default and are not durably stored for new revisions.
 - `accept` is only valid for revisions whose `latestOutput` is non-null.
 - Non-null `latestOutput` values are OpenAI-generated strict JSON drafts validated by the backend before persistence.
 - Recipe chat prompt context is assembled server-side from saved preferences, current weekly-plan recipes, favorites, recent accepted/cooked recipes, and non-expired inventory.

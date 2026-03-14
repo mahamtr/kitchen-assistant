@@ -300,11 +300,11 @@ List revisions ordered by `revisionNumber DESC`.
 
 ### `GET /weekly-plans/:weeklyPlanId/revisions/latest`
 
-Get the most recent revision for fast chat/planner resume (`chat` + `latestOutput`).
+Get the most recent revision for fast planner resume (`chat` may be empty for new revisions, plus `latestOutput`).
 
 ### `GET /weekly-plans/:weeklyPlanId/revisions/:revisionId`
 
-Get one revision (`chat` + `latestOutput`).
+Get one revision (`chat` may be empty for new revisions, plus `latestOutput`).
 
 ### `POST /weekly-plans/:weeklyPlanId/revisions`
 
@@ -321,8 +321,8 @@ Request:
 Notes:
 
 - Client sends only the new user message.
-- Server loads saved preferences, the accepted plan or latest unaccepted draft, prior revision chat, and the new user turn, then regenerates the full weekly-plan draft with OpenAI.
-- Server appends the new user turn + assistant rationale and stores the full chat in the new revision.
+- Server loads saved preferences, the accepted plan or latest unaccepted draft, and the new user turn, then regenerates the full weekly-plan draft with OpenAI.
+- Backend no longer persists full planner transcript history by default; UI/session state owns chat continuity.
 - `latestOutput` now contains:
   - `badge`
   - `rationale`
@@ -428,7 +428,7 @@ Notes:
 
 - `userMessage` is optional.
 - Starting a new recipe generation discards any prior active chef-chat session for that user.
-- When omitted, the backend starts an empty chef chat and creates revision `1` with the assistant greeting `"What would you like to eat?"`.
+- When omitted, the backend starts an empty chef chat and creates revision `1` with `latestOutput = null`.
 - In the empty-start flow, `latestOutput` is `null` until the user sends the first recipe request.
 - If a client supplies `userMessage`, the backend immediately asks OpenAI for the first strict-JSON recipe draft in revision `1`.
 - Recipe chat generation uses the user's saved preference profile, current weekly-plan recipes, favorites, recent accepted/cooked recipes, and non-expired inventory as prompt context.
@@ -445,12 +445,7 @@ Response `201`:
   },
   "latestRevision": {
     "revisionNumber": 1,
-    "chat": [
-      {
-        "role": "assistant",
-        "content": "What would you like to eat?"
-      }
-    ],
+    "chat": [],
     "latestOutput": null
   }
 }
@@ -474,11 +469,11 @@ Notes:
 
 ### `GET /recipes/generations/:generationId/revisions/latest`
 
-Get latest revision for recipe chat resume (`chat` + `latestOutput`).
+Get latest revision for recipe resume (`chat` may be empty for new revisions, plus `latestOutput`).
 
 ### `GET /recipes/generations/:generationId/revisions/:revisionId`
 
-Get one revision (`chat` + `latestOutput`).
+Get one revision (`chat` may be empty for new revisions, plus `latestOutput`).
 
 ### `POST /recipes/generations/:generationId/revisions`
 
@@ -497,8 +492,8 @@ Notes:
 - Client sends only the new user message.
 - If the latest revision has no draft yet, this creates the first OpenAI recipe draft.
 - Otherwise, it asks OpenAI for the next full variation of the current draft.
-- Server loads prior revision chat, appends new user turn + assistant answer, and stores full chat in the new revision.
-- The assistant chat line is server-authored from the validated draft title/summary; the draft content itself comes from OpenAI structured output.
+- Server loads durable context plus the new user message and stores the next validated draft output.
+- Backend no longer persists full chef-chat transcript history by default; UI/session state owns chat continuity.
 
 ### `POST /recipes/generations/:generationId/revisions/:revisionId/accept`
 

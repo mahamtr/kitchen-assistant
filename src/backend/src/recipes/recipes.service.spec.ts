@@ -232,7 +232,7 @@ describe('RecipesService', () => {
     ).rejects.toThrow('Recipe generation not found.');
   });
 
-  it('starts chef chat with an assistant greeting and no draft output', async () => {
+  it('starts chef chat without persisting transcript and no draft output', async () => {
     const userId = new Types.ObjectId();
     const generationId = new Types.ObjectId();
     const revisionId = new Types.ObjectId();
@@ -305,12 +305,6 @@ describe('RecipesService', () => {
       expect.objectContaining({
         revisionNumber: 1,
         latestOutput: null,
-        chat: [
-          expect.objectContaining({
-            role: 'assistant',
-            content: 'What would you like to eat?',
-          }),
-        ],
       }),
     );
     expect(result.latestRevision.latestOutput).toBeNull();
@@ -501,13 +495,6 @@ describe('RecipesService', () => {
     expect(recipeGenerationRevisionModel.create).toHaveBeenCalledWith(
       expect.objectContaining({
         latestOutput: generatedDraft,
-        chat: expect.arrayContaining([
-          expect.objectContaining({
-            role: 'assistant',
-            content:
-              'Here is a first draft for Garlic Turkey Rice Bowl. Fast, protein-heavy dinner built from your request.',
-          }),
-        ]),
       }),
     );
     expect(result.revision.latestOutput?.title).toBe('Garlic Turkey Rice Bowl');

@@ -75,13 +75,6 @@ export class GenerateCurrentWeeklyPlanHandler
       weeklyPlanId: planId,
       userId: user._id,
       revisionNumber: await this.getNextRevisionNumber(planId),
-      chat: [
-        {
-          role: 'assistant',
-          content: latestOutput.rationale,
-          timestamp: now,
-        },
-      ],
       latestOutput,
     });
     const acceptedDays =
@@ -198,19 +191,6 @@ export class CreateWeeklyPlanRevisionHandler
       weeklyPlanId: plan._id,
       userId: user._id,
       revisionNumber: latestRevision.revisionNumber + 1,
-      chat: [
-        ...latestRevision.chat,
-        {
-          role: 'user',
-          content: trimmedMessage,
-          timestamp: new Date(),
-        },
-        {
-          role: 'assistant',
-          content: latestOutput.rationale,
-          timestamp: new Date(),
-        },
-      ],
       latestOutput,
     });
 
