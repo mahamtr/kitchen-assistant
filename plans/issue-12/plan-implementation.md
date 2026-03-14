@@ -62,14 +62,6 @@ Tradeoffs:
 No UI changes.
 User-visible names remain friendly display labels. Behavioral change is dedupe and grouping correctness in existing Grocery/Inventory/Planner flows.
 
-# Follow-up TODOs (requested, tracked separately from issue #12 scope)
-- Keep weekly planner chat history and recipe chat history in UI memory only (session-local state), visible while the user stays on the page and cleared once they leave.
-- Keep recipe chat input placeholder as-is (`What would you like to eat?`).
-- Update planner chat input UX to use a placeholder prompt (new text) instead of pre-filling example content (`Please make Tue-Thu dinners lighter and add more high-protein lunches.`).
-- Frontend touchpoints for this follow-up work:
-  - `src/frontend/src/features/planner/PlannerChatScreen.tsx`
-  - `src/frontend/src/features/recipes/RecipeChatScreen.tsx`
-
 # Risks
 - Over-aggressive synonym mapping could wrongly merge distinct items.
 - Incomplete canonical adoption in one path can reintroduce duplicates.
