@@ -307,7 +307,120 @@ describe('RecipesService', () => {
         latestOutput: null,
       }),
     );
+    expect(recipeGenerationRevisionModel.create.mock.calls[0][0]).not.toHaveProperty(
+      'chat',
+    );
     expect(result.latestRevision.latestOutput).toBeNull();
+  });
+
+  it('starts chef chat with first draft output and does not persist transcript', async () => {
+    const userId = new Types.ObjectId();
+    const generationId = new Types.ObjectId();
+    const revisionId = new Types.ObjectId();
+    const recipeModel = createBasicModelMock();
+    const recipeGenerationModel = createBasicModelMock();
+    const recipeGenerationRevisionModel = createBasicModelMock();
+    const recipeHistoryEventModel = createBasicModelMock();
+    const weeklyPlanModel = createBasicModelMock();
+    const inventoryEventModel = createBasicModelMock();
+    const inventoryItemModel = createBasicModelMock();
+    const preferenceModel = createBasicModelMock();
+    const recipeAiService = createRecipeAiServiceMock();
+    const usersService = {
+      ensureUser: jest.fn().mockResolvedValue({ _id: userId }),
+    };
+    const generatedDraft = {
+      title: 'Garlic Turkey Rice Bowl',
+      summary: 'Fast, protein-heavy dinner built from your request.',
+      metadata: {
+        readyInMinutes: 24,
+        calories: 610,
+        highlight: 'Weeknight dinner',
+      },
+      ingredients: [
+        {
+          id: new Types.ObjectId(),
+          name: 'Turkey mince',
+          quantity: '220 g',
+          measurement: { value: 220, unit: 'g' as const },
+        },
+      ],
+      steps: [{ id: new Types.ObjectId(), order: 1, text: 'Cook.' }],
+      tags: ['Dinner', 'Chef chat'],
+    };
+
+    weeklyPlanModel.findOne.mockReturnValue({
+      sort: jest.fn().mockResolvedValue(null),
+    });
+    preferenceModel.findOne.mockResolvedValue({
+      userId,
+      profile: {
+        dietStyle: 'Balanced',
+        allergies: [],
+        cuisinePreferences: ['Italian'],
+        cookingTime: 'Under 30 min',
+        nutritionTarget: 'High protein',
+        weeklyStructure: ['Prep lunches'],
+        weeklyIntentFocus: 'Quick dinners',
+        weeklyIntentExclude: [],
+        weeklyIntentNotes: '',
+      },
+    });
+    recipeHistoryEventModel.find.mockReturnValue({
+      sort: jest.fn().mockResolvedValue([]),
+    });
+    inventoryItemModel.find.mockResolvedValue([]);
+    recipeAiService.generateDraft.mockResolvedValue(generatedDraft);
+    recipeGenerationModel.create.mockResolvedValue({
+      _id: generationId,
+      userId,
+      weeklyPlanId: null,
+      status: 'active',
+      latestRevisionId: null,
+      acceptedRecipeId: null,
+      contextSnapshot: {},
+      createdAt: new Date('2026-03-13T00:00:00.000Z'),
+      updatedAt: new Date('2026-03-13T00:00:00.000Z'),
+      save: jest.fn().mockResolvedValue(undefined),
+    });
+    recipeGenerationRevisionModel.create.mockResolvedValue({
+      _id: revisionId,
+      generationId,
+      userId,
+      revisionNumber: 1,
+      latestOutput: generatedDraft,
+      createdAt: new Date('2026-03-13T00:00:00.000Z'),
+      updatedAt: new Date('2026-03-13T00:00:00.000Z'),
+    });
+
+    const service = new RecipesService(
+      recipeModel as never,
+      recipeGenerationModel as never,
+      recipeGenerationRevisionModel as never,
+      recipeHistoryEventModel as never,
+      weeklyPlanModel as never,
+      inventoryEventModel as never,
+      inventoryItemModel as never,
+      preferenceModel as never,
+      usersService as never,
+      recipeAiService as never,
+    );
+
+    const result = await service.startGeneration(
+      authUser,
+      'I want a fast high-protein rice bowl',
+    );
+
+    expect(recipeGenerationRevisionModel.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        revisionNumber: 1,
+        latestOutput: generatedDraft,
+      }),
+    );
+    expect(recipeGenerationRevisionModel.create.mock.calls[0][0]).not.toHaveProperty(
+      'chat',
+    );
+    expect(result.latestRevision.latestOutput?.title).toBe('Garlic Turkey Rice Bowl');
   });
 
   it('rejects accepting a chef chat revision before the first draft exists', async () => {
@@ -496,6 +609,9 @@ describe('RecipesService', () => {
       expect.objectContaining({
         latestOutput: generatedDraft,
       }),
+    );
+    expect(recipeGenerationRevisionModel.create.mock.calls[0][0]).not.toHaveProperty(
+      'chat',
     );
     expect(result.revision.latestOutput?.title).toBe('Garlic Turkey Rice Bowl');
   });
