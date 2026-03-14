@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { ScrollView } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Paragraph, Text, XStack, YStack } from 'tamagui';
 import AppScaffold from '../../components/layout/AppScaffold';
@@ -22,6 +23,7 @@ export default function RecipeChatScreen() {
   const [sessionChat, setSessionChat] = useState<ChatMessage[]>([]);
   const [message, setMessage] = useState('');
   const [working, setWorking] = useState(false);
+  const chatScrollRef = useRef<ScrollView | null>(null);
 
   const load = async () => {
     const generationData = await recipesService.getGeneration(generationId);
@@ -40,6 +42,14 @@ export default function RecipeChatScreen() {
   const latestOutput = latestRevision?.latestOutput ?? null;
   const chatMessages = sessionChat;
   const latestUserMessage = [...chatMessages].reverse().find((entry) => entry.role === 'user');
+
+  useEffect(() => {
+    if (!chatMessages.length) {
+      return;
+    }
+
+    chatScrollRef.current?.scrollToEnd({ animated: true });
+  }, [chatMessages.length]);
 
   return (
     <AppScaffold
@@ -126,7 +136,12 @@ export default function RecipeChatScreen() {
             <Text color={palette.text} fontSize={15} fontWeight="700">
               Chef chat
             </Text>
-            <YStack gap={8}>
+            <ScrollView
+              ref={chatScrollRef}
+              style={{ maxHeight: 260 }}
+              contentContainerStyle={{ gap: 8 }}
+              keyboardShouldPersistTaps="handled"
+            >
               {chatMessages.map((entry) => (
                 <YStack
                   key={entry.id}
@@ -148,7 +163,7 @@ export default function RecipeChatScreen() {
                   </Paragraph>
                 </YStack>
               ))}
-            </YStack>
+            </ScrollView>
             <TextField
               value={message}
               onChangeText={setMessage}

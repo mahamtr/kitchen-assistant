@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Paragraph, Text, XStack, YStack } from 'tamagui';
 import AppScaffold from '../../components/layout/AppScaffold';
@@ -27,6 +28,7 @@ export default function PlannerChatScreen() {
   const [loading, setLoading] = useState(true);
   const [working, setWorking] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const chatScrollRef = useRef<ScrollView | null>(null);
 
   const load = async () => {
     try {
@@ -109,6 +111,14 @@ export default function PlannerChatScreen() {
 
   const chatMessages = sessionChat.slice(-6);
 
+  useEffect(() => {
+    if (!chatMessages.length) {
+      return;
+    }
+
+    chatScrollRef.current?.scrollToEnd({ animated: true });
+  }, [chatMessages.length]);
+
   return (
     <AppScaffold
       title="Weekly Plan AI Chat"
@@ -171,7 +181,12 @@ export default function PlannerChatScreen() {
             <Text color={palette.primaryStrong} fontSize={14} fontWeight="700">
               Assistant
             </Text>
-            <YStack gap={8}>
+            <ScrollView
+              ref={chatScrollRef}
+              style={{ maxHeight: 260 }}
+              contentContainerStyle={{ gap: 8 }}
+              keyboardShouldPersistTaps="handled"
+            >
               {chatMessages.map((entry) => (
                 <YStack
                   key={entry.id}
@@ -193,7 +208,7 @@ export default function PlannerChatScreen() {
                   </Paragraph>
                 </YStack>
               ))}
-            </YStack>
+            </ScrollView>
             <TextField
               value={message}
               onChangeText={setMessage}
