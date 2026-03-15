@@ -50,8 +50,8 @@ export class AuthController {
   }
 
   @Post('oauth/google')
-  signInWithGoogle() {
-    return this.authService.signInWithGoogle();
+  signInWithGoogle(@Body('idToken') idToken: string) {
+    return this.authService.signInWithGoogle({ idToken });
   }
 
   @Post('logout')

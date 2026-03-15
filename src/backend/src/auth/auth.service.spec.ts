@@ -1,3 +1,4 @@
+import { UnauthorizedException } from '@nestjs/common';
 import { AuthService } from './auth.service';
 
 describe('AuthService', () => {
@@ -58,5 +59,49 @@ describe('AuthService', () => {
         method: 'POST',
       }),
     );
+  });
+
+  it('exchanges google id token through Supabase and maps response', async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      text: () =>
+        Promise.resolve(
+          JSON.stringify({
+            access_token: 'access-google',
+            refresh_token: 'refresh-google',
+            expires_in: 3600,
+            token_type: 'bearer',
+          }),
+        ),
+    }) as never;
+
+    const service = new AuthService();
+    const result = await service.signInWithGoogle({ idToken: 'google-id-token' });
+
+    expect(result).toEqual({
+      accessToken: 'access-google',
+      refreshToken: 'refresh-google',
+      expiresIn: 3600,
+      tokenType: 'bearer',
+    });
+    expect(global.fetch).toHaveBeenCalledWith(
+      'https://example.supabase.co/auth/v1/token?grant_type=id_token',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({
+          provider: 'google',
+          id_token: 'google-id-token',
+        }),
+      }),
+    );
+  });
+
+  it('rejects google sign-in when id token is missing', async () => {
+    const service = new AuthService();
+
+    await expect(service.signInWithGoogle({ idToken: '' })).rejects.toThrow(
+      UnauthorizedException,
+    );
+    expect(global.fetch).not.toHaveBeenCalled();
   });
 });
