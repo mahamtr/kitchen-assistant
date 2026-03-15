@@ -58,6 +58,8 @@ describe('RecipeChatScreen', () => {
           },
         ],
         latestOutput: null,
+        conversationSummary: 'User requested quick high-protein dinners with simple ingredients.',
+        compactedUserMessageCount: 3,
         createdAt: '2026-03-14T00:00:00.000Z',
         updatedAt: '2026-03-14T00:00:00.000Z',
       },
@@ -75,6 +77,14 @@ describe('RecipeChatScreen', () => {
     expect(screen.getByTestId('recipe-chat-scroll')).toBeTruthy();
     expect(screen.queryByText('Accept Draft')).toBeNull();
     expect(screen.getByText('Generate first draft')).toBeTruthy();
+    expect(screen.getByText('Context summarized after 3 user turns.')).toBeTruthy();
+
+    fireEvent.press(screen.getByTestId('recipe-compaction-info-toggle'));
+    expect(screen.getByText(/concise, fast, and privacy-minded/i)).toBeTruthy();
+
+    fireEvent.press(screen.getByTestId('recipe-compact-summary-toggle'));
+    expect(screen.getByTestId('recipe-compact-summary-drawer')).toBeTruthy();
+    expect(screen.getByText('User requested quick high-protein dinners with simple ingredients.')).toBeTruthy();
 
     fireEvent.changeText(
       screen.getByPlaceholderText('What would you like to eat?'),

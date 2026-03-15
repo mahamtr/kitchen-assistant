@@ -1,4 +1,4 @@
-import { screen, waitFor } from '@testing-library/react-native';
+import { fireEvent, screen, waitFor } from '@testing-library/react-native';
 import PlannerChatScreen from './PlannerChatScreen';
 import { renderWithProviders } from '../../test/render';
 
@@ -38,6 +38,8 @@ describe('PlannerChatScreen', () => {
           timestamp: '2026-03-14T00:00:00.000Z',
         },
       ],
+      conversationSummary: 'User wants lighter dinners and higher protein lunches.',
+      compactedUserMessageCount: 3,
       latestOutput: {
         badge: 'High protein',
         rationale: 'Adjusted for lighter dinners.',
@@ -63,5 +65,14 @@ describe('PlannerChatScreen', () => {
     await waitFor(() => {
       expect(screen.getByTestId('planner-chat-scroll')).toBeTruthy();
     });
+
+    expect(screen.getByText('Context summarized after 3 user turns.')).toBeTruthy();
+
+    fireEvent.press(screen.getByTestId('planner-compaction-info-toggle'));
+    expect(screen.getByText(/concise, fast, and privacy-minded/i)).toBeTruthy();
+
+    fireEvent.press(screen.getByTestId('planner-compact-summary-toggle'));
+    expect(screen.getByTestId('planner-compact-summary-drawer')).toBeTruthy();
+    expect(screen.getByText('User wants lighter dinners and higher protein lunches.')).toBeTruthy();
   });
 });
