@@ -219,6 +219,7 @@ General consistency rules:
 - Preserve audit metadata (`source`, actor, timestamp, context)
 - Prefer append-only history for user-visible timeline behavior
 - Keep list/planning state (`GroceryList`) separate from true stock mutations (`InventoryEvent`)
+- Cross-module item matching (planner, grocery, inventory, recipes) should use shared canonical item keys with a deterministic fallback path.
 
 ## 6) Repository Strategy (Including Generic Repository)
 

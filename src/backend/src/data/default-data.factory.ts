@@ -5,6 +5,7 @@ import {
   normalizeMeasurementValue,
   type MeasurementValue,
 } from '../common/measurement';
+import { canonicalizeItemName } from '../common/item-canonicalization';
 import type {
   ChatMessageValue,
   GroceryListItemValue,
@@ -1017,11 +1018,14 @@ export class DefaultDataFactory {
     unit: string,
     expiresAt: Date | null,
   ): Omit<InventoryItemRecord, 'createdAt' | 'lastUpdatedAt'> {
+    const canonical = canonicalizeItemName(name);
+
     return {
       _id: new Types.ObjectId(),
       userId,
       name,
-      normalizedName: name.toLowerCase(),
+      normalizedName: canonical.normalizedName,
+      canonicalKey: canonical.canonicalKey,
       category: '',
       location,
       quantity: normalizeMeasurementValue(value, unit),
@@ -1056,9 +1060,12 @@ export class DefaultDataFactory {
     source: GroceryListItemValue['source'],
     recipeIds: Types.ObjectId[],
   ): GroceryListItemValue {
+    const canonical = canonicalizeItemName(name);
+
     return {
       itemId: new Types.ObjectId(),
       name,
+      canonicalKey: canonical.canonicalKey,
       quantity: normalizeMeasurementValue(value, unit),
       status: 'to_buy',
       source,

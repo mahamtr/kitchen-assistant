@@ -23,6 +23,7 @@ describe('InventoryService', () => {
       userId,
       name: 'Greek yogurt',
       normalizedName: 'greek yogurt',
+      canonicalKey: 'greek yogurt',
       category: '',
       location: 'fridge',
       quantity: { value: 500, unit: 'g' },

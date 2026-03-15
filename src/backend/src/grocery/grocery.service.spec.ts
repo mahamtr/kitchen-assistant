@@ -53,6 +53,8 @@ describe('GroceryService', () => {
     };
     const existingInventoryItem = {
       _id: new Types.ObjectId(),
+      canonicalKey: 'greek yogurt',
+      normalizedName: 'greek yogurt',
       quantity: { value: 1, unit: 'piece' },
       status: 'low_stock',
       source: 'manual',
@@ -89,6 +91,11 @@ describe('GroceryService', () => {
     expect(session.withTransaction).toHaveBeenCalled();
     expect(inventoryEventModel.create).toHaveBeenCalledWith(
       expect.any(Array),
+      { session },
+    );
+    expect(inventoryItemModel.findOne).toHaveBeenCalledWith(
+      expect.objectContaining({ canonicalKey: 'greek yogurt' }),
+      null,
       { session },
     );
     expect(existingInventoryItem.save).toHaveBeenCalledWith({ session });

@@ -7,6 +7,7 @@ import { InjectModel } from '@nestjs/mongoose';
 import { ClientSession, Model } from 'mongoose';
 import type { AuthenticatedUser } from '../common/current-user';
 import { normalizeMeasurementValue } from '../common/measurement';
+import { canonicalizeItemName } from '../common/item-canonicalization';
 import {
   GROCERY_LIST_MODEL,
   GroceryListRecord,
@@ -19,10 +20,6 @@ import {
   WeeklyPlanRecord,
 } from '../data/schemas';
 import { UsersService } from '../users/users.service';
-
-function normalizeName(value: string) {
-  return value.toLowerCase().trim();
-}
 
 @Injectable()
 export class GroceryService {
@@ -138,17 +135,22 @@ export class GroceryService {
     );
 
     for (const item of selectedItems) {
-      const normalizedName = normalizeName(item.name);
+      const canonical = canonicalizeItemName(item.name);
       const existingInventoryItem = await this.inventoryItemModel.findOne(
         {
           userId,
-          normalizedName,
+          canonicalKey: item.canonicalKey || canonical.canonicalKey,
         },
         null,
         session ? { session } : undefined,
       );
 
       if (existingInventoryItem) {
+        if (!existingInventoryItem.canonicalKey || !existingInventoryItem.normalizedName) {
+          existingInventoryItem.canonicalKey = item.canonicalKey || canonical.canonicalKey;
+          existingInventoryItem.normalizedName = canonical.normalizedName;
+        }
+
         existingInventoryItem.quantity = this.mergeQuantities(
           item.name,
           existingInventoryItem.quantity,
@@ -166,7 +168,8 @@ export class GroceryService {
           {
             userId,
             name: item.name,
-            normalizedName,
+            normalizedName: canonical.normalizedName,
+            canonicalKey: item.canonicalKey || canonical.canonicalKey,
             location: 'pantry',
             quantity: {
               value: item.quantity.value,
@@ -283,21 +286,25 @@ export class GroceryService {
     source: 'low_stock' | 'urgent_expiring',
   ) {
     for (const inventoryItem of inventoryItems) {
-      const existing = groceryList.items.find(
-        (item) =>
-          normalizeName(item.name) === normalizeName(inventoryItem.name),
-      );
+      const inventoryCanonical =
+        inventoryItem.canonicalKey || canonicalizeItemName(inventoryItem.name).canonicalKey;
+      const existing = groceryList.items.find((item) => {
+        const itemCanonical = item.canonicalKey || canonicalizeItemName(item.name).canonicalKey;
+        return itemCanonical === inventoryCanonical;
+      });
 
       if (existing) {
         existing.status = 'to_buy';
         existing.source = source;
         existing.inventoryItemId = inventoryItem._id;
+        existing.canonicalKey = inventoryCanonical;
         continue;
       }
 
       groceryList.items.push({
         itemId: inventoryItem._id,
         name: inventoryItem.name,
+        canonicalKey: inventoryCanonical,
         quantity: {
           value: 1,
           unit: inventoryItem.quantity?.unit ?? 'piece',
@@ -322,6 +329,7 @@ export class GroceryService {
       items: groceryList.items.map((item) => ({
         itemId: item.itemId.toString(),
         name: item.name,
+        canonicalKey: item.canonicalKey || canonicalizeItemName(item.name).canonicalKey,
         quantity: item.quantity,
         status: item.status,
         source: item.source,

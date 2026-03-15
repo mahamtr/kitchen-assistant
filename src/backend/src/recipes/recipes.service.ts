@@ -6,6 +6,7 @@ import {
   deriveRecipeMeasurement,
   formatMeasurement,
 } from '../common/measurement';
+import { canonicalizeItemName } from '../common/item-canonicalization';
 import {
   INVENTORY_EVENT_MODEL,
   INVENTORY_ITEM_MODEL,
@@ -484,9 +485,10 @@ export class RecipesService {
 
     for (const ingredient of recipe.ingredients.slice(0, 3)) {
       const normalizedIngredient = this.normalizeRecipeIngredient(ingredient);
+      const ingredientCanonical = canonicalizeItemName(ingredient.name);
       const inventoryItem = await this.inventoryItemModel.findOne({
         userId: user._id,
-        normalizedName: ingredient.name.toLowerCase(),
+        canonicalKey: ingredientCanonical.canonicalKey,
       });
 
       if (!inventoryItem) {
@@ -501,6 +503,11 @@ export class RecipesService {
         throw new BadRequestException(
           `Cannot deduct incompatible units for ${ingredient.name}.`,
         );
+      }
+
+      if (!inventoryItem.canonicalKey || !inventoryItem.normalizedName) {
+        inventoryItem.canonicalKey = ingredientCanonical.canonicalKey;
+        inventoryItem.normalizedName = ingredientCanonical.normalizedName;
       }
 
       inventoryItem.quantity = {

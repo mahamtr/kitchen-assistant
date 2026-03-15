@@ -351,6 +351,7 @@ Get active grocery list for current (or specified) weekly plan.
 ### `POST /grocery-lists/current/sync-from-plan`
 
 Create or refresh grocery list rows from weekly plan recipes minus current inventory.
+Item dedupe/grouping uses canonical item keys (synonym-aware) before unit comparison.
 Does not mark items purchased.
 
 ### `POST /grocery-lists/current/items/:itemId/mark-purchased`

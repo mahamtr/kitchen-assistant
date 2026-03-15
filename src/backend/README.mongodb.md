@@ -230,6 +230,7 @@ Minimal persisted shopping/planning state used by Kitchen Hub (`To Buy`).
 
 - `itemId` (stable sub-id)
 - `name`
+- `canonicalKey` (normalized synonym-aware grouping/matching key)
 - `quantity` (`{ value, unit }`, canonical exact units)
 - `status`: `'to_buy' | 'purchased' | 'skipped'`
 - `source`: `'weekly_plan' | 'low_stock' | 'urgent_expiring' | 'manual' | 'ocr'`
@@ -308,7 +309,8 @@ Current state of tracked kitchen items.
 | `_id`            | `ObjectId`                                                       | auto     | Primary key                   |
 | `userId`         | `ObjectId`                                                       | yes      | Ref -> `User._id`             |
 | `name`           | `string`                                                         | yes      | Display name                  |
-| `normalizedName` | `string`                                                         | no       | Matching/search               |
+| `normalizedName` | `string`                                                         | no       | Deterministic normalized text |
+| `canonicalKey`   | `string`                                                         | no       | Synonym-aware grouping key    |
 | `category`       | `string`                                                         | no       | Grouping                      |
 | `location`       | `'fridge' \| 'pantry' \| 'freezer' \| 'unknown'`                 | yes      | Storage location              |
 | `quantity`       | `object`                                                         | no       | `{ value, unit }`, canonical exact units for new writes |
