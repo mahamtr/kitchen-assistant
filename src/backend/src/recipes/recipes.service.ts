@@ -486,10 +486,22 @@ export class RecipesService {
     for (const ingredient of recipe.ingredients.slice(0, 3)) {
       const normalizedIngredient = this.normalizeRecipeIngredient(ingredient);
       const ingredientCanonical = canonicalizeItemName(ingredient.name);
-      const inventoryItem = await this.inventoryItemModel.findOne({
+      let inventoryItem = await this.inventoryItemModel.findOne({
         userId: user._id,
         canonicalKey: ingredientCanonical.canonicalKey,
       });
+
+      if (!inventoryItem) {
+        inventoryItem = await this.inventoryItemModel.findOne({
+          userId: user._id,
+          normalizedName: {
+            $in: [
+              ingredientCanonical.normalizedName,
+              ingredientCanonical.canonicalKey,
+            ],
+          },
+        });
+      }
 
       if (!inventoryItem) {
         continue;

@@ -377,8 +377,7 @@ describe('RecipesService', () => {
     ).rejects.toThrow('No recipe draft exists for this revision yet.');
   });
 
-  it('uses RecipeAiService to create the first draft when the user sends the first chef-chat message', async () => {
-    const userId = new Types.ObjectId();
+  it('uses RecipeAiService to create the first draft when the user sends the first chef-chat message', async () => {    const userId = new Types.ObjectId();
     const generationId = new Types.ObjectId();
     const revisionId = new Types.ObjectId();
     const recipeModel = createBasicModelMock();
@@ -511,5 +510,157 @@ describe('RecipesService', () => {
       }),
     );
     expect(result.revision.latestOutput?.title).toBe('Garlic Turkey Rice Bowl');
+  });
+
+  it('falls back to normalizedName for legacy inventory rows when cooking recipes', async () => {
+    const userId = new Types.ObjectId();
+    const recipe = {
+      _id: new Types.ObjectId(),
+      userId,
+      weeklyPlanId: null,
+      ingredients: [
+        {
+          id: new Types.ObjectId(),
+          name: 'Spinach',
+          quantity: '60 g',
+          measurement: { value: 60, unit: 'g' as const },
+        },
+      ],
+      save: jest.fn().mockResolvedValue(undefined),
+    } as unknown as RecipeRecord;
+    const inventoryItem = {
+      _id: new Types.ObjectId(),
+      name: 'Spinach',
+      normalizedName: 'spinach',
+      canonicalKey: null,
+      quantity: { value: 100, unit: 'g' },
+      dates: {},
+      save: jest.fn().mockResolvedValue(undefined),
+    };
+
+    const recipeModel = createBasicModelMock();
+    const recipeGenerationModel = createBasicModelMock();
+    const recipeGenerationRevisionModel = createBasicModelMock();
+    const recipeHistoryEventModel = createBasicModelMock();
+    const weeklyPlanModel = createBasicModelMock();
+    const inventoryEventModel = createBasicModelMock();
+    const inventoryItemModel = createBasicModelMock();
+    const preferenceModel = createBasicModelMock();
+    const recipeAiService = createRecipeAiServiceMock();
+    const usersService = {
+      ensureUser: jest.fn().mockResolvedValue({ _id: userId }),
+    };
+
+    recipeModel.findOne.mockResolvedValue(recipe);
+    inventoryEventModel.create.mockResolvedValue({ _id: new Types.ObjectId() });
+    inventoryItemModel.findOne
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(inventoryItem);
+    recipeHistoryEventModel.create.mockResolvedValue({ _id: new Types.ObjectId() });
+
+    const service = new RecipesService(
+      recipeModel as never,
+      recipeGenerationModel as never,
+      recipeGenerationRevisionModel as never,
+      recipeHistoryEventModel as never,
+      weeklyPlanModel as never,
+      inventoryEventModel as never,
+      inventoryItemModel as never,
+      preferenceModel as never,
+      usersService as never,
+      recipeAiService as never,
+    );
+    jest.spyOn(service, 'getRecipe').mockResolvedValue({} as never);
+
+    await service.cookRecipe(authUser, recipe._id.toString());
+
+    expect(inventoryItemModel.findOne).toHaveBeenNthCalledWith(1, {
+      userId,
+      canonicalKey: 'spinach',
+    });
+    expect(inventoryItemModel.findOne).toHaveBeenNthCalledWith(2, {
+      userId,
+      normalizedName: { $in: ['spinach', 'spinach'] },
+    });
+    expect(inventoryItem.canonicalKey).toBe('spinach');
+    expect(inventoryItem.normalizedName).toBe('spinach');
+    expect(inventoryItem.quantity).toEqual({ value: 40, unit: 'g' });
+    expect(inventoryItem.save).toHaveBeenCalled();
+  });
+
+  it('matches canonical aliases against legacy normalized names when cooking recipes', async () => {
+    const userId = new Types.ObjectId();
+    const recipe = {
+      _id: new Types.ObjectId(),
+      userId,
+      weeklyPlanId: null,
+      ingredients: [
+        {
+          id: new Types.ObjectId(),
+          name: 'Spinach leaves',
+          quantity: '30 g',
+          measurement: { value: 30, unit: 'g' as const },
+        },
+      ],
+      save: jest.fn().mockResolvedValue(undefined),
+    } as unknown as RecipeRecord;
+    const inventoryItem = {
+      _id: new Types.ObjectId(),
+      name: 'Spinach',
+      normalizedName: 'spinach',
+      canonicalKey: undefined,
+      quantity: { value: 50, unit: 'g' },
+      dates: {},
+      save: jest.fn().mockResolvedValue(undefined),
+    };
+
+    const recipeModel = createBasicModelMock();
+    const recipeGenerationModel = createBasicModelMock();
+    const recipeGenerationRevisionModel = createBasicModelMock();
+    const recipeHistoryEventModel = createBasicModelMock();
+    const weeklyPlanModel = createBasicModelMock();
+    const inventoryEventModel = createBasicModelMock();
+    const inventoryItemModel = createBasicModelMock();
+    const preferenceModel = createBasicModelMock();
+    const recipeAiService = createRecipeAiServiceMock();
+    const usersService = {
+      ensureUser: jest.fn().mockResolvedValue({ _id: userId }),
+    };
+
+    recipeModel.findOne.mockResolvedValue(recipe);
+    inventoryEventModel.create.mockResolvedValue({ _id: new Types.ObjectId() });
+    inventoryItemModel.findOne
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(inventoryItem);
+    recipeHistoryEventModel.create.mockResolvedValue({ _id: new Types.ObjectId() });
+
+    const service = new RecipesService(
+      recipeModel as never,
+      recipeGenerationModel as never,
+      recipeGenerationRevisionModel as never,
+      recipeHistoryEventModel as never,
+      weeklyPlanModel as never,
+      inventoryEventModel as never,
+      inventoryItemModel as never,
+      preferenceModel as never,
+      usersService as never,
+      recipeAiService as never,
+    );
+    jest.spyOn(service, 'getRecipe').mockResolvedValue({} as never);
+
+    await service.cookRecipe(authUser, recipe._id.toString());
+
+    expect(inventoryItemModel.findOne).toHaveBeenNthCalledWith(1, {
+      userId,
+      canonicalKey: 'spinach',
+    });
+    expect(inventoryItemModel.findOne).toHaveBeenNthCalledWith(2, {
+      userId,
+      normalizedName: { $in: ['spinach leaves', 'spinach'] },
+    });
+    expect(inventoryItem.canonicalKey).toBe('spinach');
+    expect(inventoryItem.normalizedName).toBe('spinach leaves');
+    expect(inventoryItem.quantity).toEqual({ value: 20, unit: 'g' });
+    expect(inventoryItem.save).toHaveBeenCalled();
   });
 });
