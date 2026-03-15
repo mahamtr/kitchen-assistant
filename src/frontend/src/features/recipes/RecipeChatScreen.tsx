@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { ScrollView } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Paragraph, Text, XStack, YStack } from 'tamagui';
 import AppScaffold from '../../components/layout/AppScaffold';
@@ -119,29 +120,36 @@ export default function RecipeChatScreen() {
             <Text color={palette.text} fontSize={15} fontWeight="700">
               Chef chat
             </Text>
-            <YStack gap={8}>
-              {chatMessages.map((entry) => (
-                <YStack
-                  key={entry.id}
-                  alignSelf={entry.role === 'user' ? 'flex-end' : 'flex-start'}
-                  maxWidth="90%"
-                  borderRadius={8}
-                  padding={8}
-                  backgroundColor={entry.role === 'assistant' ? palette.primarySoft : palette.successSoft}
-                >
-                  <Text
-                    color={entry.role === 'assistant' ? palette.primaryStrong : palette.success}
-                    fontSize={12}
-                    fontWeight="700"
+            <ScrollView
+              testID="recipe-chat-scroll"
+              style={{ maxHeight: 260 }}
+              contentContainerStyle={{ gap: 8 }}
+              nestedScrollEnabled
+            >
+              <YStack gap={8}>
+                {chatMessages.map((entry) => (
+                  <YStack
+                    key={entry.id}
+                    alignSelf={entry.role === 'user' ? 'flex-end' : 'flex-start'}
+                    maxWidth="90%"
+                    borderRadius={8}
+                    padding={8}
+                    backgroundColor={entry.role === 'assistant' ? palette.primarySoft : palette.successSoft}
                   >
-                    {entry.role === 'assistant' ? 'Chef' : 'You'}
-                  </Text>
-                  <Paragraph color={palette.textStrong} fontSize={13} lineHeight={18}>
-                    {entry.content}
-                  </Paragraph>
-                </YStack>
-              ))}
-            </YStack>
+                    <Text
+                      color={entry.role === 'assistant' ? palette.primaryStrong : palette.success}
+                      fontSize={12}
+                      fontWeight="700"
+                    >
+                      {entry.role === 'assistant' ? 'Chef' : 'You'}
+                    </Text>
+                    <Paragraph color={palette.textStrong} fontSize={13} lineHeight={18}>
+                      {entry.content}
+                    </Paragraph>
+                  </YStack>
+                ))}
+              </YStack>
+            </ScrollView>
             <TextField
               value={message}
               onChangeText={setMessage}

@@ -72,6 +72,7 @@ describe('RecipeChatScreen', () => {
       expect(screen.getByText('What would you like to eat?')).toBeTruthy();
     });
 
+    expect(screen.getByTestId('recipe-chat-scroll')).toBeTruthy();
     expect(screen.queryByText('Accept Draft')).toBeNull();
     expect(screen.getByText('Generate first draft')).toBeTruthy();
 

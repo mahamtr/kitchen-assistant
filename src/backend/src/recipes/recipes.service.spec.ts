@@ -377,6 +377,118 @@ describe('RecipesService', () => {
     ).rejects.toThrow('No recipe draft exists for this revision yet.');
   });
 
+  it('compacts chef chat every third user message', async () => {
+    const userId = new Types.ObjectId();
+    const generationId = new Types.ObjectId();
+    const recipeModel = createBasicModelMock();
+    const recipeGenerationModel = createBasicModelMock();
+    const recipeGenerationRevisionModel = createBasicModelMock();
+    const recipeHistoryEventModel = createBasicModelMock();
+    const weeklyPlanModel = createBasicModelMock();
+    const inventoryEventModel = createBasicModelMock();
+    const inventoryItemModel = createBasicModelMock();
+    const preferenceModel = createBasicModelMock();
+    const recipeAiService = createRecipeAiServiceMock();
+    const usersService = {
+      ensureUser: jest.fn().mockResolvedValue({ _id: userId }),
+    };
+
+    const latestRevision = {
+      _id: new Types.ObjectId(),
+      generationId,
+      userId,
+      revisionNumber: 3,
+      chat: [
+        {
+          _id: new Types.ObjectId(),
+          role: 'assistant',
+          content: 'Chef response one',
+          timestamp: new Date('2026-03-13T00:00:00.000Z'),
+        },
+        {
+          _id: new Types.ObjectId(),
+          role: 'user',
+          content: 'User request one',
+          timestamp: new Date('2026-03-13T00:01:00.000Z'),
+        },
+        {
+          _id: new Types.ObjectId(),
+          role: 'assistant',
+          content: 'Chef response two',
+          timestamp: new Date('2026-03-13T00:02:00.000Z'),
+        },
+        {
+          _id: new Types.ObjectId(),
+          role: 'user',
+          content: 'User request two',
+          timestamp: new Date('2026-03-13T00:03:00.000Z'),
+        },
+      ],
+      conversationSummary: '',
+      compactedUserMessageCount: 0,
+      latestOutput: {
+        title: 'Current Draft',
+        summary: 'Current draft summary',
+        metadata: { readyInMinutes: 20, calories: 500, highlight: 'Fast' },
+        ingredients: [{ id: new Types.ObjectId(), name: 'Rice', quantity: '200 g', measurement: { value: 200, unit: 'g' } }],
+        steps: [{ id: new Types.ObjectId(), order: 1, text: 'Cook.' }],
+        tags: ['Dinner'],
+      },
+      updatedAt: new Date('2026-03-13T00:03:00.000Z'),
+    } as unknown as RecipeGenerationRevisionRecord;
+
+    recipeGenerationModel.findOne.mockResolvedValue({
+      _id: generationId,
+      userId,
+      weeklyPlanId: null,
+      status: 'active',
+      latestRevisionId: latestRevision._id,
+      acceptedRecipeId: null,
+      contextSnapshot: {},
+      save: jest.fn().mockResolvedValue(undefined),
+    });
+    recipeGenerationRevisionModel.findOne.mockReturnValue({
+      sort: jest.fn().mockResolvedValue(latestRevision),
+    });
+    preferenceModel.findOne.mockResolvedValue(null);
+    recipeHistoryEventModel.find.mockReturnValue({ sort: jest.fn().mockResolvedValue([]) });
+    inventoryItemModel.find.mockResolvedValue([]);
+    recipeAiService.reviseDraft.mockResolvedValue(latestRevision.latestOutput);
+    recipeGenerationRevisionModel.create.mockResolvedValue({
+      ...latestRevision,
+      _id: new Types.ObjectId(),
+      revisionNumber: 4,
+      createdAt: new Date('2026-03-13T00:04:00.000Z'),
+    });
+
+    const service = new RecipesService(
+      recipeModel as never,
+      recipeGenerationModel as never,
+      recipeGenerationRevisionModel as never,
+      recipeHistoryEventModel as never,
+      weeklyPlanModel as never,
+      inventoryEventModel as never,
+      inventoryItemModel as never,
+      preferenceModel as never,
+      usersService as never,
+      recipeAiService as never,
+    );
+
+    await service.createGenerationRevision(
+      authUser,
+      generationId.toString(),
+      'Third user request triggers compaction',
+    );
+
+    expect(recipeGenerationRevisionModel.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        compactedUserMessageCount: 3,
+      }),
+    );
+    const createdPayload = recipeGenerationRevisionModel.create.mock.calls[0][0];
+    expect(createdPayload.chat).toHaveLength(2);
+  });
+
   it('uses RecipeAiService to create the first draft when the user sends the first chef-chat message', async () => {
     const userId = new Types.ObjectId();
     const generationId = new Types.ObjectId();

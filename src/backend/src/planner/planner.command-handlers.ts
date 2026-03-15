@@ -194,27 +194,69 @@ export class CreateWeeklyPlanRevisionHandler
       week,
     );
 
+    const nextUserEntry = {
+      role: 'user' as const,
+      content: trimmedMessage,
+      timestamp: new Date(),
+    };
+    const nextAssistantEntry = {
+      role: 'assistant' as const,
+      content: latestOutput.rationale,
+      timestamp: new Date(),
+    };
+    const fullChat = [...latestRevision.chat, nextUserEntry, nextAssistantEntry];
+    const totalUserMessages = this.countUserMessages(fullChat);
+    const shouldCompact = totalUserMessages % 3 === 0;
+    const conversationSummary = shouldCompact
+      ? this.buildConversationSummary(
+          latestRevision.conversationSummary,
+          fullChat,
+        )
+      : (latestRevision.conversationSummary ?? '');
+
     const revision = await this.weeklyPlanRevisionModel.create({
       weeklyPlanId: plan._id,
       userId: user._id,
       revisionNumber: latestRevision.revisionNumber + 1,
-      chat: [
-        ...latestRevision.chat,
-        {
-          role: 'user',
-          content: trimmedMessage,
-          timestamp: new Date(),
-        },
-        {
-          role: 'assistant',
-          content: latestOutput.rationale,
-          timestamp: new Date(),
-        },
-      ],
+      chat: shouldCompact ? [nextUserEntry, nextAssistantEntry] : fullChat,
+      conversationSummary,
+      compactedUserMessageCount: shouldCompact
+        ? totalUserMessages
+        : (latestRevision.compactedUserMessageCount ?? 0),
       latestOutput,
     });
 
     return this.plannerReadService.toRevisionResponse(revision);
+  }
+
+  private countUserMessages(chat: WeeklyPlanRevisionRecord['chat']) {
+    return chat.filter((entry) => entry.role === 'user').length;
+  }
+
+  private buildConversationSummary(
+    previousSummary: string | undefined,
+    chat: WeeklyPlanRevisionRecord['chat'],
+  ) {
+    const userRequests = chat
+      .filter((entry) => entry.role === 'user')
+      .map((entry) => entry.content.trim())
+      .filter(Boolean)
+      .slice(-3)
+      .join(' | ');
+    const assistantResponses = chat
+      .filter((entry) => entry.role === 'assistant')
+      .map((entry) => entry.content.trim())
+      .filter(Boolean)
+      .slice(-3)
+      .join(' | ');
+
+    return [
+      previousSummary?.trim(),
+      userRequests ? `Recent user requests: ${userRequests}` : '',
+      assistantResponses ? `Recent assistant rationale: ${assistantResponses}` : '',
+    ]
+      .filter(Boolean)
+      .join('\n');
   }
 }
 

@@ -302,6 +302,109 @@ describe('Planner command handlers', () => {
     );
   });
 
+  it('CreateWeeklyPlanRevisionHandler compacts chat every third user message', async () => {
+    const userId = new Types.ObjectId();
+    const planId = new Types.ObjectId();
+    const recipes = factory.createPlannerRecipeCatalog(
+      userId,
+      new Date('2026-03-09T00:00:00.000Z'),
+    ) as RecipeRecord[];
+    const latestOutput = buildHybridOutput(recipes);
+    const plan = {
+      _id: planId,
+      userId,
+      days: [],
+      acceptedRevisionId: null,
+    } as unknown as WeeklyPlanRecord;
+    const latestRevision = {
+      _id: new Types.ObjectId(),
+      weeklyPlanId: planId,
+      userId,
+      revisionNumber: 3,
+      chat: [
+        {
+          _id: new Types.ObjectId(),
+          role: 'assistant',
+          content: 'First response',
+          timestamp: new Date('2026-03-09T08:00:00.000Z'),
+        },
+        {
+          _id: new Types.ObjectId(),
+          role: 'user',
+          content: 'First request',
+          timestamp: new Date('2026-03-09T08:01:00.000Z'),
+        },
+        {
+          _id: new Types.ObjectId(),
+          role: 'assistant',
+          content: 'Second response',
+          timestamp: new Date('2026-03-09T08:02:00.000Z'),
+        },
+        {
+          _id: new Types.ObjectId(),
+          role: 'user',
+          content: 'Second request',
+          timestamp: new Date('2026-03-09T08:03:00.000Z'),
+        },
+      ],
+      conversationSummary: '',
+      compactedUserMessageCount: 0,
+      latestOutput,
+      updatedAt: new Date('2026-03-09T08:03:00.000Z'),
+    } as unknown as WeeklyPlanRevisionRecord;
+    const weeklyPlanRevisionModel = {
+      findOne: jest.fn().mockReturnValue(sortedResult(latestRevision)),
+      create: jest.fn().mockResolvedValue({ ...latestRevision, _id: new Types.ObjectId() }),
+    };
+    const plannerReadService = {
+      requireUser: jest.fn().mockResolvedValue({ _id: userId }),
+      requireCompletedPreferenceDocument: jest
+        .fn()
+        .mockResolvedValue({ profile: factory.createDefaultProfile() }),
+      requirePlanDocument: jest.fn().mockResolvedValue(plan),
+      getWeekContextFromPlan: jest
+        .fn()
+        .mockReturnValue(factory.createWeekScaffold(new Date('2026-03-09T00:00:00.000Z'))),
+      toRevisionResponse: jest.fn().mockReturnValue({ revisionNumber: 4 }),
+    };
+    const plannerRecipeCatalogService = {
+      getOrSeedCatalog: jest.fn().mockResolvedValue(recipes),
+      toAllowedRecipe: jest.fn((recipe: RecipeRecord) => ({
+        recipeId: recipe._id.toString(),
+        title: recipe.title,
+        summary: recipe.summary ?? '',
+        calories: 480,
+        tags: recipe.tags ?? [],
+      })),
+    };
+    const plannerAiService = { reviseDraft: jest.fn().mockResolvedValue(latestOutput) };
+    const plannerDraftContextBuilder = { buildRevisionContext: jest.fn().mockReturnValue({}) };
+
+    const handler = new CreateWeeklyPlanRevisionHandler(
+      weeklyPlanRevisionModel as never,
+      plannerReadService as never,
+      plannerRecipeCatalogService as never,
+      plannerAiService as never,
+      plannerDraftContextBuilder as never,
+    );
+
+    await handler.execute(
+      new CreateWeeklyPlanRevisionCommand(
+        authUser,
+        planId.toString(),
+        'Third request triggers compaction.',
+      ),
+    );
+
+    expect(weeklyPlanRevisionModel.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        compactedUserMessageCount: 3,
+      }),
+    );
+    const createdPayload = weeklyPlanRevisionModel.create.mock.calls[0][0];
+    expect(createdPayload.chat).toHaveLength(2);
+  });
+
   it('AcceptWeeklyPlanRevisionHandler materializes inline recipes and rewrites the accepted plan', async () => {
     const userId = new Types.ObjectId();
     const planId = new Types.ObjectId();
