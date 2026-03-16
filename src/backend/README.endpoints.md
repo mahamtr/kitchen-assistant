@@ -83,7 +83,8 @@ Request:
 
 ```json
 {
-  "idToken": "google_id_token_or_auth_code"
+  "idToken": "google_openid_id_token",
+  "nonce": "raw_client_nonce_when_google_nonce_is_used"
 }
 ```
 

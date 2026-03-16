@@ -87,14 +87,47 @@ describe('AuthScreen', () => {
     });
   });
 
-  it('hides the unavailable Google sign-in CTA on login', () => {
+  it('shows the Google sign-in CTA on login', () => {
     renderWithProviders(<AuthScreen mode="login" />);
 
-    expect(screen.queryByText('Continue with Google')).toBeNull();
+    expect(screen.getByText('Continue with Google')).toBeTruthy();
     expect(
-      screen.getByText(
-        'Email and password sign-in is currently the supported login flow.',
-      ),
+      screen.getByText('Or continue with your email and password.'),
     ).toBeTruthy();
+  });
+
+  it('routes home after successful Google sign-in', async () => {
+    authService.signInWithGoogle.mockResolvedValue({ accessToken: 'token' });
+
+    renderWithProviders(<AuthScreen mode="login" />);
+    fireEvent.press(screen.getByText('Continue with Google'));
+
+    await waitFor(() => {
+      expect(authService.signInWithGoogle).toHaveBeenCalled();
+      expect(mockReplace).toHaveBeenCalledWith('/');
+    });
+  });
+
+  it('does not route when Google sign-in is cancelled', async () => {
+    authService.signInWithGoogle.mockResolvedValue(null);
+
+    renderWithProviders(<AuthScreen mode="login" />);
+    fireEvent.press(screen.getByText('Continue with Google'));
+
+    await waitFor(() => {
+      expect(authService.signInWithGoogle).toHaveBeenCalled();
+    });
+    expect(mockReplace).not.toHaveBeenCalled();
+  });
+
+  it('shows an inline error when Google sign-in fails', async () => {
+    authService.signInWithGoogle.mockRejectedValue(new Error('Google OAuth failed'));
+
+    renderWithProviders(<AuthScreen mode="login" />);
+    fireEvent.press(screen.getByText('Continue with Google'));
+
+    await waitFor(() => {
+      expect(screen.getByText('Google OAuth failed')).toBeTruthy();
+    });
   });
 });
