@@ -86,8 +86,11 @@ describe('RecipeChatScreen', () => {
     expect(screen.getByTestId('recipe-compact-summary-drawer')).toBeTruthy();
     expect(screen.getByText('User requested quick high-protein dinners with simple ingredients.')).toBeTruthy();
 
+    const recipeInput = screen.getByPlaceholderText('What would you like to eat?');
+    expect(recipeInput).toHaveProp('multiline', true);
+
     fireEvent.changeText(
-      screen.getByPlaceholderText('What would you like to eat?'),
+      recipeInput,
       'I want a high-protein dinner under 30 minutes.',
     );
     fireEvent.press(screen.getByText('Generate first draft'));

@@ -67,6 +67,10 @@ describe('PlannerChatScreen', () => {
     });
 
     expect(screen.getByText('Context summarized after 3 user turns.')).toBeTruthy();
+    expect(screen.getByPlaceholderText('What should we adjust in this weekly plan?')).toBeTruthy();
+    expect(
+      screen.queryByDisplayValue('Please make Tue-Thu dinners lighter and add more high-protein lunches.'),
+    ).toBeNull();
 
     fireEvent.press(screen.getByTestId('planner-compaction-info-toggle'));
     expect(screen.getByText(/concise, fast, and privacy-minded/i)).toBeTruthy();

@@ -23,7 +23,7 @@ export default function PlannerChatScreen() {
   const router = useRouter();
   const pushToast = useUiStore((state) => state.pushToast);
   const [revision, setRevision] = useState<WeeklyPlanRevisionResponse | null>(null);
-  const [message, setMessage] = useState('Please make Tue-Thu dinners lighter and add more high-protein lunches.');
+  const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(true);
   const [working, setWorking] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -247,7 +247,8 @@ export default function PlannerChatScreen() {
             <TextField
               value={message}
               onChangeText={setMessage}
-              placeholder="Type your custom changes"
+              placeholder="What should we adjust in this weekly plan?"
+              multiline
             />
             <ActionButton variant="secondary" onPress={createRevision} disabled={working || !message.trim()}>
               {working ? 'Updating...' : 'Update Draft'}
