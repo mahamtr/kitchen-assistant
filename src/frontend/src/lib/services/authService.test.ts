@@ -3,6 +3,8 @@ const makeRedirectUriMock = jest.fn(() => 'kitchen-assistant://oauth/google');
 const authRequestMock = jest.fn().mockImplementation(() => ({
   promptAsync: promptAsyncMock,
 }));
+const digestStringAsyncMock = jest.fn();
+const randomUUIDMock = jest.fn();
 
 jest.mock('react-native', () => ({
   Platform: {
@@ -16,6 +18,17 @@ jest.mock('expo-auth-session', () => ({
     IdToken: 'id_token',
   },
   makeRedirectUri: makeRedirectUriMock,
+}));
+
+jest.mock('expo-crypto', () => ({
+  CryptoDigestAlgorithm: {
+    SHA256: 'SHA-256',
+  },
+  CryptoEncoding: {
+    HEX: 'hex',
+  },
+  digestStringAsync: digestStringAsyncMock,
+  randomUUID: randomUUIDMock,
 }));
 
 const clearStoredAuthSessionMock = jest.fn();
@@ -65,6 +78,10 @@ describe('authService.signInWithGoogle', () => {
 
   beforeEach(() => {
     process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID = 'web-client-id';
+    digestStringAsyncMock.mockReset();
+    randomUUIDMock.mockReset();
+    randomUUIDMock.mockReturnValue('raw-google-nonce');
+    digestStringAsyncMock.mockResolvedValue('hashed-google-nonce');
 
     promptAsyncMock.mockReset();
     makeRedirectUriMock.mockClear();
@@ -124,10 +141,26 @@ describe('authService.signInWithGoogle', () => {
     const result = await authService.signInWithGoogle();
 
     expect(authRequestMock).toHaveBeenCalledTimes(1);
+    expect(authRequestMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        clientId: 'web-client-id',
+        responseType: 'id_token',
+        usePKCE: false,
+        extraParams: expect.objectContaining({
+          nonce: 'hashed-google-nonce',
+          prompt: 'select_account',
+        }),
+      }),
+    );
+    expect(digestStringAsyncMock).toHaveBeenCalledWith(
+      'SHA-256',
+      'raw-google-nonce',
+      { encoding: 'hex' },
+    );
     expect(makeRedirectUriMock).toHaveBeenCalledTimes(1);
     expect(apiPostMock).toHaveBeenCalledWith(
       '/auth/oauth/google',
-      { idToken: 'google-id-token' },
+      { idToken: 'google-id-token', nonce: 'raw-google-nonce' },
       { skipAuth: true },
     );
     expect(setStoredAuthSessionMock).toHaveBeenCalledWith(session);

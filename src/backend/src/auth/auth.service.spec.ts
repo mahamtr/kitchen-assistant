@@ -61,7 +61,7 @@ describe('AuthService', () => {
     );
   });
 
-  it('exchanges google id token through Supabase and maps response', async () => {
+  it('exchanges google id token and nonce through Supabase and maps response', async () => {
     global.fetch = jest.fn().mockResolvedValue({
       ok: true,
       text: () =>
@@ -76,7 +76,10 @@ describe('AuthService', () => {
     }) as never;
 
     const service = new AuthService();
-    const result = await service.signInWithGoogle({ idToken: 'google-id-token' });
+    const result = await service.signInWithGoogle({
+      idToken: 'google-id-token',
+      nonce: 'raw-google-nonce',
+    });
 
     expect(result).toEqual({
       accessToken: 'access-google',
@@ -91,12 +94,14 @@ describe('AuthService', () => {
         body: JSON.stringify({
           provider: 'google',
           id_token: 'google-id-token',
+          nonce: 'raw-google-nonce',
         }),
       }),
     );
   });
 
   it('rejects google sign-in when id token is missing', async () => {
+    global.fetch = jest.fn() as never;
     const service = new AuthService();
 
     await expect(service.signInWithGoogle({ idToken: '' })).rejects.toThrow(

@@ -170,8 +170,9 @@ export class AuthService {
     };
   }
 
-  async signInWithGoogle(payload: { idToken: string }) {
+  async signInWithGoogle(payload: { idToken: string; nonce?: string }) {
     const idToken = payload.idToken?.trim();
+    const nonce = payload.nonce?.trim();
 
     if (!idToken) {
       throw new UnauthorizedException('Google idToken is required.');
@@ -182,6 +183,7 @@ export class AuthService {
       body: {
         provider: 'google',
         id_token: idToken,
+        ...(nonce ? { nonce } : {}),
       },
     });
 

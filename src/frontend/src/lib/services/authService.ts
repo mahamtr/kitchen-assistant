@@ -1,5 +1,6 @@
 import { Platform } from 'react-native';
 import * as AuthSession from 'expo-auth-session';
+import * as Crypto from 'expo-crypto';
 import {
   clearStoredAuthSession,
   getStoredAuthSession,
@@ -10,6 +11,7 @@ import { apiGet, apiPost } from '../api';
 import { useUserStore } from '../store/userStore';
 import type {
   ForgotPasswordRequest,
+  GoogleSignInRequest,
   ResetPasswordRequest,
   SessionUserSummary,
   SignInRequest,
@@ -83,6 +85,20 @@ function getGoogleClientId() {
   return process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID?.trim() ?? '';
 }
 
+async function createGoogleNoncePair() {
+  const rawNonce = Crypto.randomUUID();
+  const hashedNonce = await Crypto.digestStringAsync(
+    Crypto.CryptoDigestAlgorithm.SHA256,
+    rawNonce,
+    { encoding: Crypto.CryptoEncoding.HEX },
+  );
+
+  return {
+    rawNonce,
+    hashedNonce,
+  };
+}
+
 async function signInWithGoogle() {
   const clientId = getGoogleClientId();
 
@@ -90,16 +106,19 @@ async function signInWithGoogle() {
     throw new Error('Google sign-in is not configured for this platform.');
   }
 
+  const { rawNonce, hashedNonce } = await createGoogleNoncePair();
+
   const request = new AuthSession.AuthRequest({
     clientId,
     responseType: AuthSession.ResponseType.IdToken,
+    usePKCE: false,
     scopes: ['openid', 'profile', 'email'],
     redirectUri: AuthSession.makeRedirectUri({
       scheme: 'kitchen-assistant',
       path: 'oauth/google',
     }),
     extraParams: {
-      nonce: 'kitchen-assistant-google-oauth',
+      nonce: hashedNonce,
       prompt: 'select_account',
     },
   });
@@ -124,13 +143,14 @@ async function signInWithGoogle() {
     throw new Error('Google sign-in did not return an id token.');
   }
 
-  const session = (await apiPost(
-    '/auth/oauth/google',
-    { idToken },
-    {
-      skipAuth: true,
-    },
-  )) as StoredAuthSession;
+  const payload: GoogleSignInRequest = {
+    idToken,
+    nonce: rawNonce,
+  };
+
+  const session = (await apiPost('/auth/oauth/google', payload, {
+    skipAuth: true,
+  })) as StoredAuthSession;
 
   await setStoredAuthSession(session);
   await restoreSession();
