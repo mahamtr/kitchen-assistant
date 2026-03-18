@@ -22,6 +22,7 @@ import {
   InventoryEventRecord,
   InventoryItemRecord,
   OcrReceiptLineValue,
+  QuantityValue,
   WEEKLY_PLAN_MODEL,
   WeeklyPlanRecord,
 } from '../data/schemas';
@@ -60,7 +61,7 @@ export class InventoryService {
     private readonly weeklyPlanModel: Model<WeeklyPlanRecord>,
     private readonly usersService: UsersService,
     private readonly defaultDataFactory: DefaultDataFactory,
-  ) {}
+  ) { }
 
   async getSummary(authUser: AuthenticatedUser) {
     const user = await this.usersService.ensureUser(authUser);
@@ -307,12 +308,7 @@ export class InventoryService {
     }
 
     if ('quantity' in patch) {
-      if (!isPlainObject(patch.quantity)) {
-        throw new BadRequestException('Inventory quantity must be an object.');
-      }
-      nextPatch.quantity = normalizeOptionalMeasurement(
-        patch.quantity as InventoryItemRecord['quantity'],
-      );
+      nextPatch.quantity = this.toValidatedQuantity(patch.quantity);
     }
 
     if ('dates' in patch) {
@@ -331,6 +327,49 @@ export class InventoryService {
     }
 
     return nextPatch;
+  }
+
+  private toValidatedQuantity(value: unknown): QuantityValue {
+    if (!isPlainObject(value)) {
+      throw new BadRequestException('Inventory quantity must be an object.');
+    }
+
+    const allowedKeys = new Set(['value', 'unit']);
+    const unknownKeys = Object.keys(value).filter((key) => !allowedKeys.has(key));
+
+    if (unknownKeys.length > 0) {
+      throw new BadRequestException(
+        `Unsupported inventory quantity fields: ${unknownKeys.join(', ')}`,
+      );
+    }
+
+    const quantity = {
+      value: 'value' in value ? value.value : null,
+      unit: 'unit' in value ? value.unit : null,
+    };
+
+    if (quantity.value !== null && typeof quantity.value !== 'number') {
+      throw new BadRequestException(
+        'Inventory quantity value must be a number or null.',
+      );
+    }
+
+    if (quantity.unit !== null && typeof quantity.unit !== 'string') {
+      throw new BadRequestException(
+        'Inventory quantity unit must be a string or null.',
+      );
+    }
+
+    try {
+      return normalizeOptionalMeasurement({
+        value: quantity.value,
+        unit: quantity.unit,
+      });
+    } catch (error) {
+      throw new BadRequestException(
+        error instanceof Error ? error.message : 'Invalid inventory quantity.',
+      );
+    }
   }
 
   private toValidatedDates(value: unknown): InventoryDatesValue {
@@ -654,9 +693,9 @@ export class InventoryService {
     name: string,
     current:
       | {
-          value: number | null;
-          unit: string | null;
-        }
+        value: number | null;
+        unit: string | null;
+      }
       | undefined,
     incoming: {
       value: number;

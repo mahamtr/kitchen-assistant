@@ -83,7 +83,8 @@ Request:
 
 ```json
 {
-  "idToken": "google_id_token_or_auth_code"
+  "idToken": "google_openid_id_token",
+  "nonce": "raw_client_nonce_when_google_nonce_is_used"
 }
 ```
 
@@ -452,7 +453,9 @@ Response `201`:
         "content": "What would you like to eat?"
       }
     ],
-    "latestOutput": null
+    "latestOutput": null,
+    "conversationSummary": "",
+    "compactedUserMessageCount": 0
   }
 }
 ```
@@ -472,6 +475,7 @@ Return the generation summary plus its latest revision.
 Notes:
 
 - `latestRevision.latestOutput` may be `null` before the first user request.
+- When older turns are compacted, `latestRevision.conversationSummary` contains the server-generated summary and `latestRevision.compactedUserMessageCount` reports how many user turns were compacted.
 
 ### `GET /recipes/generations/:generationId/revisions/latest`
 

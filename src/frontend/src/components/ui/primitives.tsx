@@ -1,4 +1,4 @@
-import { Children, type ComponentProps, type ReactNode } from 'react';
+import { Children, type ComponentProps, type ReactNode, useState } from 'react';
 import { Pressable, TextInput } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Button, Input, Paragraph, Text, XStack, YStack } from 'tamagui';
@@ -176,6 +176,9 @@ export function TextField({
   editable?: boolean;
   keyboardType?: ComponentProps<typeof TextInput>['keyboardType'];
 }) {
+  const multilineMinHeight = 20;
+  const [multilineHeight, setMultilineHeight] = useState(multilineMinHeight);
+
   return (
     <YStack gap={6}>
       {label ? <FieldLabel>{label}</FieldLabel> : null}
@@ -191,14 +194,17 @@ export function TextField({
           <TextInput
             editable={editable}
             multiline
-            numberOfLines={4}
             placeholder={placeholder}
             placeholderTextColor={palette.textMuted}
             value={value}
             onChangeText={onChangeText}
             keyboardType={keyboardType}
+            onContentSizeChange={(event) => {
+              setMultilineHeight(Math.max(multilineMinHeight, event.nativeEvent.contentSize.height));
+            }}
             style={{
-              minHeight: 82,
+              minHeight: multilineMinHeight,
+              height: multilineHeight,
               color: palette.text,
               fontSize: 14,
               textAlignVertical: 'top',

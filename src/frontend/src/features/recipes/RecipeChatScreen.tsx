@@ -1,14 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
+import { ScrollView } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Paragraph, Text, XStack, YStack } from 'tamagui';
 import AppScaffold from '../../components/layout/AppScaffold';
-import {
-  ActionButton,
-  SectionCard,
-  StickyFooter,
-  TextField,
-  palette,
-} from '../../components/ui/primitives';
+import { ActionButton, SectionCard, StickyFooter, TextField, palette } from '../../components/ui/primitives';
+import { CompactionNotice } from '../../components/chat/CompactionNotice';
 import { recipesService } from '../../lib/services';
 import { useUiStore } from '../../lib/store/uiStore';
 import type { RecipeGenerationResponse } from '../../lib/types/contracts';
@@ -33,6 +29,8 @@ export default function RecipeChatScreen() {
   const latestOutput = latestRevision?.latestOutput ?? null;
   const chatMessages = useMemo(() => latestRevision?.chat ?? [], [latestRevision]);
   const latestUserMessage = [...chatMessages].reverse().find((entry) => entry.role === 'user');
+  const compactedUserMessageCount = latestRevision?.compactedUserMessageCount ?? 0;
+  const compactSummary = latestRevision?.conversationSummary?.trim() ?? '';
 
   return (
     <AppScaffold
@@ -119,29 +117,43 @@ export default function RecipeChatScreen() {
             <Text color={palette.text} fontSize={15} fontWeight="700">
               Chef chat
             </Text>
-            <YStack gap={8}>
-              {chatMessages.map((entry) => (
-                <YStack
-                  key={entry.id}
-                  alignSelf={entry.role === 'user' ? 'flex-end' : 'flex-start'}
-                  maxWidth="90%"
-                  borderRadius={8}
-                  padding={8}
-                  backgroundColor={entry.role === 'assistant' ? palette.primarySoft : palette.successSoft}
-                >
-                  <Text
-                    color={entry.role === 'assistant' ? palette.primaryStrong : palette.success}
-                    fontSize={12}
-                    fontWeight="700"
+            <CompactionNotice
+              compactedUserMessageCount={compactedUserMessageCount}
+              compactSummary={compactSummary}
+              infoToggleTestId="recipe-compaction-info-toggle"
+              summaryToggleTestId="recipe-compact-summary-toggle"
+              summaryDrawerTestId="recipe-compact-summary-drawer"
+            />
+            <ScrollView
+              testID="recipe-chat-scroll"
+              style={{ maxHeight: 260 }}
+              contentContainerStyle={{ gap: 8 }}
+              nestedScrollEnabled
+            >
+              <YStack gap={8}>
+                {chatMessages.map((entry) => (
+                  <YStack
+                    key={entry.id}
+                    alignSelf={entry.role === 'user' ? 'flex-end' : 'flex-start'}
+                    maxWidth="90%"
+                    borderRadius={8}
+                    padding={8}
+                    backgroundColor={entry.role === 'assistant' ? palette.primarySoft : palette.successSoft}
                   >
-                    {entry.role === 'assistant' ? 'Chef' : 'You'}
-                  </Text>
-                  <Paragraph color={palette.textStrong} fontSize={13} lineHeight={18}>
-                    {entry.content}
-                  </Paragraph>
-                </YStack>
-              ))}
-            </YStack>
+                    <Text
+                      color={entry.role === 'assistant' ? palette.primaryStrong : palette.success}
+                      fontSize={12}
+                      fontWeight="700"
+                    >
+                      {entry.role === 'assistant' ? 'Chef' : 'You'}
+                    </Text>
+                    <Paragraph color={palette.textStrong} fontSize={13} lineHeight={18}>
+                      {entry.content}
+                    </Paragraph>
+                  </YStack>
+                ))}
+              </YStack>
+            </ScrollView>
             <TextField
               value={message}
               onChangeText={setMessage}

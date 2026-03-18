@@ -149,6 +149,9 @@ describe('RecipesService', () => {
         steps: [{ id: new Types.ObjectId(), order: 1, text: 'Cook.' }],
         tags: ['Dinner'],
       },
+      conversationSummary:
+        'User asked for quick high-protein dinners and simple ingredients.',
+      compactedUserMessageCount: 3,
       createdAt: new Date('2026-03-13T00:00:00.000Z'),
       updatedAt: new Date('2026-03-13T00:00:00.000Z'),
     } as RecipeGenerationRevisionRecord;
@@ -195,6 +198,10 @@ describe('RecipesService', () => {
         unit: 'clove',
       },
     });
+    expect(result.latestRevision.conversationSummary).toBe(
+      'User asked for quick high-protein dinners and simple ingredients.',
+    );
+    expect(result.latestRevision.compactedUserMessageCount).toBe(3);
   });
 
   it('rejects access to recipe generations outside the authenticated user scope', async () => {
@@ -377,7 +384,281 @@ describe('RecipesService', () => {
     ).rejects.toThrow('No recipe draft exists for this revision yet.');
   });
 
-  it('uses RecipeAiService to create the first draft when the user sends the first chef-chat message', async () => {    const userId = new Types.ObjectId();
+  it('compacts chef chat every third user message', async () => {
+    const userId = new Types.ObjectId();
+    const generationId = new Types.ObjectId();
+    const recipeModel = createBasicModelMock();
+    const recipeGenerationModel = createBasicModelMock();
+    const recipeGenerationRevisionModel = createBasicModelMock();
+    const recipeHistoryEventModel = createBasicModelMock();
+    const weeklyPlanModel = createBasicModelMock();
+    const inventoryEventModel = createBasicModelMock();
+    const inventoryItemModel = createBasicModelMock();
+    const preferenceModel = createBasicModelMock();
+    const recipeAiService = createRecipeAiServiceMock();
+    const usersService = {
+      ensureUser: jest.fn().mockResolvedValue({ _id: userId }),
+    };
+
+    const latestRevision = {
+      _id: new Types.ObjectId(),
+      generationId,
+      userId,
+      revisionNumber: 3,
+      chat: [
+        {
+          _id: new Types.ObjectId(),
+          role: 'assistant',
+          content: 'Chef response one',
+          timestamp: new Date('2026-03-13T00:00:00.000Z'),
+        },
+        {
+          _id: new Types.ObjectId(),
+          role: 'user',
+          content: 'User request one',
+          timestamp: new Date('2026-03-13T00:01:00.000Z'),
+        },
+        {
+          _id: new Types.ObjectId(),
+          role: 'assistant',
+          content: 'Chef response two',
+          timestamp: new Date('2026-03-13T00:02:00.000Z'),
+        },
+        {
+          _id: new Types.ObjectId(),
+          role: 'user',
+          content: 'User request two',
+          timestamp: new Date('2026-03-13T00:03:00.000Z'),
+        },
+        {
+          _id: new Types.ObjectId(),
+          role: 'assistant',
+          content: 'Chef response three',
+          timestamp: new Date('2026-03-13T00:04:00.000Z'),
+        },
+      ],
+      conversationSummary: '',
+      compactedUserMessageCount: 0,
+      latestOutput: {
+        title: 'Current Draft',
+        summary: 'Current draft summary',
+        metadata: { readyInMinutes: 20, calories: 500, highlight: 'Fast' },
+        ingredients: [{ id: new Types.ObjectId(), name: 'Rice', quantity: '200 g', measurement: { value: 200, unit: 'g' } }],
+        steps: [{ id: new Types.ObjectId(), order: 1, text: 'Cook.' }],
+        tags: ['Dinner'],
+      },
+      updatedAt: new Date('2026-03-13T00:03:00.000Z'),
+    } as unknown as RecipeGenerationRevisionRecord;
+
+    recipeGenerationModel.findOne.mockResolvedValue({
+      _id: generationId,
+      userId,
+      weeklyPlanId: null,
+      status: 'active',
+      latestRevisionId: latestRevision._id,
+      acceptedRecipeId: null,
+      contextSnapshot: {},
+      save: jest.fn().mockResolvedValue(undefined),
+    });
+    recipeGenerationRevisionModel.findOne.mockReturnValue({
+      sort: jest.fn().mockResolvedValue(latestRevision),
+    });
+    preferenceModel.findOne.mockResolvedValue(null);
+    recipeHistoryEventModel.find.mockReturnValue({ sort: jest.fn().mockResolvedValue([]) });
+    inventoryItemModel.find.mockResolvedValue([]);
+    recipeAiService.reviseDraft.mockResolvedValue(latestRevision.latestOutput);
+    recipeGenerationRevisionModel.create.mockResolvedValue({
+      ...latestRevision,
+      _id: new Types.ObjectId(),
+      revisionNumber: 4,
+      createdAt: new Date('2026-03-13T00:04:00.000Z'),
+    });
+
+    const service = new RecipesService(
+      recipeModel as never,
+      recipeGenerationModel as never,
+      recipeGenerationRevisionModel as never,
+      recipeHistoryEventModel as never,
+      weeklyPlanModel as never,
+      inventoryEventModel as never,
+      inventoryItemModel as never,
+      preferenceModel as never,
+      usersService as never,
+      recipeAiService as never,
+    );
+
+    await service.createGenerationRevision(
+      authUser,
+      generationId.toString(),
+      'Third user request triggers compaction',
+    );
+
+    expect(recipeGenerationRevisionModel.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        compactedUserMessageCount: 1,
+      }),
+    );
+    const createdPayload = recipeGenerationRevisionModel.create.mock.calls[0][0];
+    expect(createdPayload.chat).toHaveLength(4);
+    expect(createdPayload.chat[0]?.content).toBe('User request two');
+    expect(createdPayload.conversationSummary).toContain(
+      'Recent chef replies: Chef response one',
+    );
+  });
+
+  it('waits for three new visible chef-chat user turns before compacting again', async () => {
+    const userId = new Types.ObjectId();
+    const generationId = new Types.ObjectId();
+    const recipeModel = createBasicModelMock();
+    const recipeGenerationModel = createBasicModelMock();
+    const recipeGenerationRevisionModel = createBasicModelMock();
+    const recipeHistoryEventModel = createBasicModelMock();
+    const weeklyPlanModel = createBasicModelMock();
+    const inventoryEventModel = createBasicModelMock();
+    const inventoryItemModel = createBasicModelMock();
+    const preferenceModel = createBasicModelMock();
+    const recipeAiService = createRecipeAiServiceMock();
+    const usersService = {
+      ensureUser: jest.fn().mockResolvedValue({ _id: userId }),
+    };
+    const latestRevision = {
+      _id: new Types.ObjectId(),
+      generationId,
+      userId,
+      revisionNumber: 4,
+      chat: [
+        {
+          _id: new Types.ObjectId(),
+          role: 'user',
+          content: 'Visible request zero',
+          timestamp: new Date('2026-03-13T00:00:00.000Z'),
+        },
+        {
+          _id: new Types.ObjectId(),
+          role: 'assistant',
+          content: 'Visible response zero',
+          timestamp: new Date('2026-03-13T00:00:30.000Z'),
+        },
+        {
+          _id: new Types.ObjectId(),
+          role: 'user',
+          content: 'Visible request one',
+          timestamp: new Date('2026-03-13T00:01:00.000Z'),
+        },
+        {
+          _id: new Types.ObjectId(),
+          role: 'assistant',
+          content: 'Visible response one',
+          timestamp: new Date('2026-03-13T00:02:00.000Z'),
+        },
+        {
+          _id: new Types.ObjectId(),
+          role: 'user',
+          content: 'Visible request two',
+          timestamp: new Date('2026-03-13T00:03:00.000Z'),
+        },
+        {
+          _id: new Types.ObjectId(),
+          role: 'assistant',
+          content: 'Visible response two',
+          timestamp: new Date('2026-03-13T00:04:00.000Z'),
+        },
+        {
+          _id: new Types.ObjectId(),
+          role: 'user',
+          content: 'Visible request three',
+          timestamp: new Date('2026-03-13T00:05:00.000Z'),
+        },
+        {
+          _id: new Types.ObjectId(),
+          role: 'assistant',
+          content: 'Visible response three',
+          timestamp: new Date('2026-03-13T00:06:00.000Z'),
+        },
+      ],
+      conversationSummary: 'Recent user requests: Older request',
+      compactedUserMessageCount: 1,
+      latestOutput: {
+        title: 'Current Draft',
+        summary: 'Current draft summary',
+        metadata: { readyInMinutes: 20, calories: 500, highlight: 'Fast' },
+        ingredients: [
+          {
+            id: new Types.ObjectId(),
+            name: 'Rice',
+            quantity: '200 g',
+            measurement: { value: 200, unit: 'g' },
+          },
+        ],
+        steps: [{ id: new Types.ObjectId(), order: 1, text: 'Cook.' }],
+        tags: ['Dinner'],
+      },
+      updatedAt: new Date('2026-03-13T00:04:00.000Z'),
+    } as unknown as RecipeGenerationRevisionRecord;
+
+    recipeGenerationModel.findOne.mockResolvedValue({
+      _id: generationId,
+      userId,
+      weeklyPlanId: null,
+      status: 'active',
+      latestRevisionId: latestRevision._id,
+      acceptedRecipeId: null,
+      contextSnapshot: {},
+      save: jest.fn().mockResolvedValue(undefined),
+    });
+    recipeGenerationRevisionModel.findOne.mockReturnValue({
+      sort: jest.fn().mockResolvedValue(latestRevision),
+    });
+    preferenceModel.findOne.mockResolvedValue(null);
+    recipeHistoryEventModel.find.mockReturnValue({
+      sort: jest.fn().mockResolvedValue([]),
+    });
+    inventoryItemModel.find.mockResolvedValue([]);
+    recipeAiService.reviseDraft.mockResolvedValue(latestRevision.latestOutput);
+    recipeGenerationRevisionModel.create.mockResolvedValue({
+      ...latestRevision,
+      _id: new Types.ObjectId(),
+      revisionNumber: 5,
+      createdAt: new Date('2026-03-13T00:05:00.000Z'),
+    });
+
+    const service = new RecipesService(
+      recipeModel as never,
+      recipeGenerationModel as never,
+      recipeGenerationRevisionModel as never,
+      recipeHistoryEventModel as never,
+      weeklyPlanModel as never,
+      inventoryEventModel as never,
+      inventoryItemModel as never,
+      preferenceModel as never,
+      usersService as never,
+      recipeAiService as never,
+    );
+
+    await service.createGenerationRevision(
+      authUser,
+      generationId.toString(),
+      'Third new visible request',
+    );
+
+    expect(recipeGenerationRevisionModel.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        compactedUserMessageCount: 4,
+      }),
+    );
+    const createdPayload = recipeGenerationRevisionModel.create.mock.calls[0][0];
+    expect(createdPayload.chat).toHaveLength(4);
+    expect(createdPayload.chat[0]?.content).toBe('Visible request three');
+    expect(createdPayload.conversationSummary).toContain(
+      'Recent user requests: Older request',
+    );
+    expect(createdPayload.conversationSummary).toContain(
+      'Recent user requests: Visible request zero | Visible request one | Visible request two',
+    );
+  });
+
+  it('uses RecipeAiService to create the first draft when the user sends the first chef-chat message', async () => {
+    const userId = new Types.ObjectId();
     const generationId = new Types.ObjectId();
     const revisionId = new Types.ObjectId();
     const recipeModel = createBasicModelMock();

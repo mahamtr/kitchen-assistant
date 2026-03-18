@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
 import { Stack, useRouter, useSegments } from 'expo-router';
+import * as WebBrowser from 'expo-web-browser';
 import { ActivityIndicator } from 'react-native';
 import { Text, YStack } from 'tamagui';
 import ThemeProvider from '../src/theme';
@@ -8,6 +9,9 @@ import ToastHost from '../src/components/ui/ToastHost';
 import { palette } from '../src/components/ui/primitives';
 import { authService } from '../src/lib/services';
 import { rootStackScreenOptions } from '../navigation/routeOptions';
+
+// Close the web OAuth popup when the redirect page loads back into the app.
+WebBrowser.maybeCompleteAuthSession();
 
 export default function RootLayout() {
   const router = useRouter();

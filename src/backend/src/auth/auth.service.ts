@@ -1,7 +1,6 @@
 import {
   Injectable,
   InternalServerErrorException,
-  NotImplementedException,
   UnauthorizedException,
 } from '@nestjs/common';
 import type { Request } from 'express';
@@ -171,10 +170,24 @@ export class AuthService {
     };
   }
 
-  signInWithGoogle() {
-    throw new NotImplementedException(
-      'Google sign-in is not implemented in the backend yet.',
-    );
+  async signInWithGoogle(payload: { idToken: string; nonce?: string }) {
+    const idToken = payload.idToken?.trim();
+    const nonce = payload.nonce?.trim();
+
+    if (!idToken) {
+      throw new UnauthorizedException('Google idToken is required.');
+    }
+
+    const data = await this.supabaseRequest('/auth/v1/token?grant_type=id_token', {
+      method: 'POST',
+      body: {
+        provider: 'google',
+        id_token: idToken,
+        ...(nonce ? { nonce } : {}),
+      },
+    });
+
+    return this.toTokenResponse(data);
   }
 
   private toTokenResponse(data: SupabaseSessionResponse) {

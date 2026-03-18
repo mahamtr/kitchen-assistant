@@ -553,6 +553,8 @@ export interface WeeklyPlanRevisionRecord {
   userId: EntityId;
   revisionNumber: number;
   chat: ChatMessageValue[];
+  conversationSummary?: string;
+  compactedUserMessageCount?: number;
   latestOutput: WeeklyPlanRevisionOutputValue;
   createdAt: Date;
   updatedAt: Date;
@@ -565,6 +567,8 @@ export const WeeklyPlanRevisionSchema = new Schema<WeeklyPlanRevisionRecord>(
     userId: { type: Schema.Types.ObjectId, required: true },
     revisionNumber: { type: Number, required: true },
     chat: { type: [chatMessageSchema], default: [] },
+    conversationSummary: { type: String, default: '' },
+    compactedUserMessageCount: { type: Number, default: 0 },
     latestOutput: { type: weeklyPlanRevisionOutputSchema, required: true },
   },
   {
@@ -696,6 +700,8 @@ export interface RecipeGenerationRevisionRecord {
   userId: EntityId;
   revisionNumber: number;
   chat: ChatMessageValue[];
+  conversationSummary?: string;
+  compactedUserMessageCount?: number;
   latestOutput: RecipeDraftOutputValue | null;
   createdAt: Date;
   updatedAt: Date;
@@ -709,6 +715,8 @@ export const RecipeGenerationRevisionSchema =
       userId: { type: Schema.Types.ObjectId, required: true },
       revisionNumber: { type: Number, required: true },
       chat: { type: [chatMessageSchema], default: [] },
+      conversationSummary: { type: String, default: '' },
+      compactedUserMessageCount: { type: Number, default: 0 },
       latestOutput: { type: recipeDraftOutputSchema, default: null },
     },
     {

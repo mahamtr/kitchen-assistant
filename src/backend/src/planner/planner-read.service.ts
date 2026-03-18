@@ -211,6 +211,8 @@ export class PlannerReadService {
         timestamp: entry.timestamp.toISOString(),
       })),
       latestOutput: serializeRevisionOutput(revision.latestOutput),
+      conversationSummary: revision.conversationSummary ?? '',
+      compactedUserMessageCount: revision.compactedUserMessageCount ?? 0,
     };
   }
 }

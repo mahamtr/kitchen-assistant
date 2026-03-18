@@ -65,8 +65,19 @@ describe('visual primitives', () => {
     fireEvent.changeText(screen.getByDisplayValue('Tomatoes'), 'Cherry tomatoes');
     fireEvent.changeText(screen.getByDisplayValue('Use the produce drawer.'), 'Use the cool shelf.');
 
+    const multilineInput = screen.getByPlaceholderText('Add prep notes');
+    fireEvent(multilineInput, 'contentSizeChange', {
+      nativeEvent: {
+        contentSize: {
+          height: 64,
+          width: 240,
+        },
+      },
+    });
+
     expect(onSingleLineChange).toHaveBeenCalledWith('Cherry tomatoes');
     expect(onMultilineChange).toHaveBeenCalledWith('Use the cool shelf.');
+    expect(multilineInput).toHaveStyle({ height: 64 });
     expect(screen.getByText('Ingredient')).toBeTruthy();
     expect(screen.getByText('Notes')).toBeTruthy();
   });

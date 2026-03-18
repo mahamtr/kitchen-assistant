@@ -41,6 +41,11 @@ export interface SignUpRequest {
   password: string;
 }
 
+export interface GoogleSignInRequest {
+  idToken: string;
+  nonce?: string;
+}
+
 export interface ForgotPasswordRequest {
   email: string;
 }
@@ -115,6 +120,8 @@ export interface WeeklyPlanRevisionResponse {
   revisionNumber: number;
   chat: ChatMessage[];
   latestOutput: WeeklyPlanRevision['latestOutput'];
+  conversationSummary?: string;
+  compactedUserMessageCount?: number;
 }
 
 export interface GroceryListResponse {

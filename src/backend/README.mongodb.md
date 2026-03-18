@@ -196,6 +196,8 @@ LLM revision history for a recipe generation session.
 | `revisionNumber` | `number`   | yes      | Sequential per generation                                       |
 | `chat`           | `array`    | yes      | Server-maintained conversation (`role`, `content`, `timestamp`) |
 | `latestOutput`   | `object \| null`   | no       | Latest LLM JSON recipe draft output; null before the first draft exists |
+| `conversationSummary` | `string` | no | Server-generated compact summary of older user/assistant turns |
+| `compactedUserMessageCount` | `number` | no | Count of user turns represented by `conversationSummary` |
 | `createdAt`      | `Date`     | auto     | Timestamp                                                       |
 | `updatedAt`      | `Date`     | auto     | Timestamp                                                       |
 
@@ -210,6 +212,7 @@ Notes:
 - `accept` is only valid for revisions whose `latestOutput` is non-null.
 - Non-null `latestOutput` values are OpenAI-generated strict JSON drafts validated by the backend before persistence.
 - Recipe chat prompt context is assembled server-side from saved preferences, current weekly-plan recipes, favorites, recent accepted/cooked recipes, and non-expired inventory.
+- When the chat is compacted, `conversationSummary` carries the summarized older context and `compactedUserMessageCount` records how many user turns were compacted.
 
 ## 6) Entity: GroceryList
 

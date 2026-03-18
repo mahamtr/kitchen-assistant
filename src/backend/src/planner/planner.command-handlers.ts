@@ -25,6 +25,9 @@ import { PlannerReadService } from './planner-read.service';
 import { PlannerRecipeCatalogService } from './planner-recipe-catalog.service';
 import { endOfWeek, startOfCurrentWeek } from './planner.shared';
 
+const COMPACTION_BATCH_USER_TURNS = 3;
+const RETAINED_VISIBLE_USER_TURNS = 2;
+
 @Injectable()
 @CommandHandler(GenerateCurrentWeeklyPlanCommand)
 export class GenerateCurrentWeeklyPlanHandler
@@ -194,27 +197,116 @@ export class CreateWeeklyPlanRevisionHandler
       week,
     );
 
+    const nextUserEntry = {
+      role: 'user' as const,
+      content: trimmedMessage,
+      timestamp: new Date(),
+    };
+    const nextAssistantEntry = {
+      role: 'assistant' as const,
+      content: latestOutput.rationale,
+      timestamp: new Date(),
+    };
+    const fullChat = [...latestRevision.chat, nextUserEntry, nextAssistantEntry];
+    const shouldCompact = this.shouldCompactVisibleChat(
+      fullChat,
+      latestRevision.compactedUserMessageCount ?? 0,
+    );
+    const { compactedChat, retainedChat } = shouldCompact
+      ? this.splitChatForCompaction(fullChat, RETAINED_VISIBLE_USER_TURNS)
+      : {
+          compactedChat: [] as WeeklyPlanRevisionRecord['chat'],
+          retainedChat: fullChat,
+        };
+    const conversationSummary = shouldCompact
+      ? this.buildConversationSummary(
+          latestRevision.conversationSummary,
+          compactedChat,
+        )
+      : (latestRevision.conversationSummary ?? '');
+    const compactedUserMessageCount = shouldCompact
+      ? (latestRevision.compactedUserMessageCount ?? 0) +
+        this.countUserMessages(compactedChat)
+      : (latestRevision.compactedUserMessageCount ?? 0);
+
     const revision = await this.weeklyPlanRevisionModel.create({
       weeklyPlanId: plan._id,
       userId: user._id,
       revisionNumber: latestRevision.revisionNumber + 1,
-      chat: [
-        ...latestRevision.chat,
-        {
-          role: 'user',
-          content: trimmedMessage,
-          timestamp: new Date(),
-        },
-        {
-          role: 'assistant',
-          content: latestOutput.rationale,
-          timestamp: new Date(),
-        },
-      ],
+      chat: retainedChat,
+      conversationSummary,
+      compactedUserMessageCount,
       latestOutput,
     });
 
     return this.plannerReadService.toRevisionResponse(revision);
+  }
+
+  private countUserMessages(chat: WeeklyPlanRevisionRecord['chat']) {
+    return chat.filter((entry) => entry.role === 'user').length;
+  }
+
+  private shouldCompactVisibleChat(
+    chat: WeeklyPlanRevisionRecord['chat'],
+    compactedUserMessageCount: number,
+  ) {
+    const visibleUserMessages = this.countUserMessages(chat);
+    const threshold =
+      compactedUserMessageCount > 0
+        ? RETAINED_VISIBLE_USER_TURNS + COMPACTION_BATCH_USER_TURNS
+        : COMPACTION_BATCH_USER_TURNS;
+
+    return visibleUserMessages >= threshold;
+  }
+
+  private splitChatForCompaction(
+    chat: WeeklyPlanRevisionRecord['chat'],
+    retainedUserTurns: number,
+  ) {
+    let retainedUsers = 0;
+    let retainedStartIndex = 0;
+
+    for (let index = chat.length - 1; index >= 0; index -= 1) {
+      if (chat[index]?.role === 'user') {
+        retainedUsers += 1;
+      }
+
+      if (retainedUsers === retainedUserTurns) {
+        retainedStartIndex = index;
+        break;
+      }
+    }
+
+    return {
+      compactedChat: chat.slice(0, retainedStartIndex),
+      retainedChat: chat.slice(retainedStartIndex),
+    };
+  }
+
+  private buildConversationSummary(
+    previousSummary: string | undefined,
+    chat: WeeklyPlanRevisionRecord['chat'],
+  ) {
+    const userRequests = chat
+      .filter((entry) => entry.role === 'user')
+      .map((entry) => entry.content.trim())
+      .filter(Boolean)
+      .slice(-3)
+      .join(' | ');
+    const assistantResponses = chat
+      .filter((entry) => entry.role === 'assistant')
+      .map((entry) => entry.content.trim())
+      .filter(Boolean)
+      .slice(-3)
+      .join(' | ');
+
+    return [
+      previousSummary?.trim(),
+      userRequests ? `Recent user requests: ${userRequests}` : '',
+      assistantResponses ? `Recent assistant rationale: ${assistantResponses}` : '',
+    ]
+      .filter(Boolean)
+      .join('\n');
   }
 }
 
