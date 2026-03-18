@@ -196,6 +196,8 @@ export interface WeeklyPlanRevision {
   revisionNumber: number;
   chat: ChatMessage[];
   latestOutput: WeeklyPlanRevisionOutput;
+  conversationSummary?: string;
+  compactedUserMessageCount?: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -298,6 +300,8 @@ export interface RecipeGenerationRevision {
   revisionNumber: number;
   chat: ChatMessage[];
   latestOutput: RecipeDraftOutput | null;
+  conversationSummary?: string;
+  compactedUserMessageCount?: number;
   createdAt: string;
   updatedAt: string;
 }

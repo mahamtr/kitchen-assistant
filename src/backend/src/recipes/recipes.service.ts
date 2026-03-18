@@ -26,6 +26,9 @@ import {
   WeeklyPlanRecord,
 } from '../data/schemas';
 import { UsersService } from '../users/users.service';
+
+const COMPACTION_BATCH_USER_TURNS = 3;
+const RETAINED_VISIBLE_USER_TURNS = 2;
 import {
   RecipeAiService,
   type RecipePromptInventoryItem,
@@ -338,26 +341,48 @@ export class RecipesService {
       latestRevision,
       userMessage: trimmedMessage,
     });
+    const nextUserEntry = {
+      role: 'user' as const,
+      content: trimmedMessage,
+      timestamp: new Date(),
+    };
+    const nextAssistantEntry = {
+      role: 'assistant' as const,
+      content: this.buildRecipeAssistantMessage(
+        nextDraft,
+        latestRevision.latestOutput ? 'revise' : 'generate',
+      ),
+      timestamp: new Date(),
+    };
+    const fullChat = [...latestRevision.chat, nextUserEntry, nextAssistantEntry];
+    const shouldCompact = this.shouldCompactVisibleChat(
+      fullChat,
+      latestRevision.compactedUserMessageCount ?? 0,
+    );
+    const { compactedChat, retainedChat } = shouldCompact
+      ? this.splitChatForCompaction(fullChat, RETAINED_VISIBLE_USER_TURNS)
+      : {
+          compactedChat: [] as RecipeGenerationRevisionRecord['chat'],
+          retainedChat: fullChat,
+        };
+    const conversationSummary = shouldCompact
+      ? this.buildConversationSummary(
+          latestRevision.conversationSummary,
+          compactedChat,
+        )
+      : (latestRevision.conversationSummary ?? '');
+    const compactedUserMessageCount = shouldCompact
+      ? (latestRevision.compactedUserMessageCount ?? 0) +
+        this.countUserMessages(compactedChat)
+      : (latestRevision.compactedUserMessageCount ?? 0);
+
     const revision = await this.recipeGenerationRevisionModel.create({
       generationId: generation._id,
       userId: user._id,
       revisionNumber,
-      chat: [
-        ...latestRevision.chat,
-        {
-          role: 'user',
-          content: trimmedMessage,
-          timestamp: new Date(),
-        },
-        {
-          role: 'assistant',
-          content: this.buildRecipeAssistantMessage(
-            nextDraft,
-            latestRevision.latestOutput ? 'revise' : 'generate',
-          ),
-          timestamp: new Date(),
-        },
-      ],
+      chat: retainedChat,
+      conversationSummary,
+      compactedUserMessageCount,
       latestOutput: nextDraft,
     });
 
@@ -655,6 +680,8 @@ export class RecipesService {
             tags: revision.latestOutput.tags,
           }
         : null,
+      conversationSummary: revision.conversationSummary ?? '',
+      compactedUserMessageCount: revision.compactedUserMessageCount ?? 0,
       createdAt: revision.createdAt.toISOString(),
       updatedAt: revision.updatedAt.toISOString(),
     };
@@ -861,14 +888,9 @@ export class RecipesService {
       currentDraft: params.latestRevision?.latestOutput
         ? this.serializeDraftForAi(params.latestRevision.latestOutput)
         : null,
-      chat: params.latestRevision?.chat.map((entry) => ({
-        role:
-          (entry.role === 'assistant' ? 'assistant' : 'user') as
-            | 'assistant'
-            | 'user',
-        content: entry.content,
-        timestamp: entry.timestamp.toISOString(),
-      })),
+      chat: params.latestRevision
+        ? this.toAiChatEntries(params.latestRevision)
+        : undefined,
       userMessage: params.userMessage,
     };
   }
@@ -940,6 +962,100 @@ export class RecipesService {
       location: item.location,
       status: item.status,
     };
+  }
+
+  private toAiChatEntries(revision: RecipeGenerationRevisionRecord) {
+    const compacted = revision.compactedUserMessageCount ?? 0;
+    const summary = revision.conversationSummary?.trim();
+    const summaryEntry =
+      summary && compacted > 0
+        ? [
+            {
+              role: 'assistant' as const,
+              content: `Conversation summary after ${compacted} user turns:\n${summary}`,
+              timestamp: revision.updatedAt.toISOString(),
+            },
+          ]
+        : [];
+
+    return [
+      ...summaryEntry,
+      ...revision.chat.map((entry) => ({
+        role:
+          (entry.role === 'assistant' ? 'assistant' : 'user') as
+            | 'assistant'
+            | 'user',
+        content: entry.content,
+        timestamp: entry.timestamp.toISOString(),
+      })),
+    ];
+  }
+
+  private countUserMessages(chat: RecipeGenerationRevisionRecord['chat']) {
+    return chat.filter((entry) => entry.role === 'user').length;
+  }
+
+  private shouldCompactVisibleChat(
+    chat: RecipeGenerationRevisionRecord['chat'],
+    compactedUserMessageCount: number,
+  ) {
+    const visibleUserMessages = this.countUserMessages(chat);
+    const threshold =
+      compactedUserMessageCount > 0
+        ? RETAINED_VISIBLE_USER_TURNS + COMPACTION_BATCH_USER_TURNS
+        : COMPACTION_BATCH_USER_TURNS;
+
+    return visibleUserMessages >= threshold;
+  }
+
+  private splitChatForCompaction(
+    chat: RecipeGenerationRevisionRecord['chat'],
+    retainedUserTurns: number,
+  ) {
+    let retainedUsers = 0;
+    let retainedStartIndex = 0;
+
+    for (let index = chat.length - 1; index >= 0; index -= 1) {
+      if (chat[index]?.role === 'user') {
+        retainedUsers += 1;
+      }
+
+      if (retainedUsers === retainedUserTurns) {
+        retainedStartIndex = index;
+        break;
+      }
+    }
+
+    return {
+      compactedChat: chat.slice(0, retainedStartIndex),
+      retainedChat: chat.slice(retainedStartIndex),
+    };
+  }
+
+  private buildConversationSummary(
+    previousSummary: string | undefined,
+    chat: RecipeGenerationRevisionRecord['chat'],
+  ) {
+    const userRequests = chat
+      .filter((entry) => entry.role === 'user')
+      .map((entry) => entry.content.trim())
+      .filter(Boolean)
+      .slice(-3)
+      .join(' | ');
+    const assistantResponses = chat
+      .filter((entry) => entry.role === 'assistant')
+      .map((entry) => entry.content.trim())
+      .filter(Boolean)
+      .slice(-3)
+      .join(' | ');
+
+    return [
+      previousSummary?.trim(),
+      userRequests ? `Recent user requests: ${userRequests}` : '',
+      assistantResponses ? `Recent chef replies: ${assistantResponses}` : '',
+    ]
+      .filter(Boolean)
+      .join('\n');
   }
 
   private serializeDraftForAi(

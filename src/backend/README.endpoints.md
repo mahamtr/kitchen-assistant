@@ -452,7 +452,9 @@ Response `201`:
         "content": "What would you like to eat?"
       }
     ],
-    "latestOutput": null
+    "latestOutput": null,
+    "conversationSummary": "",
+    "compactedUserMessageCount": 0
   }
 }
 ```
@@ -472,6 +474,7 @@ Return the generation summary plus its latest revision.
 Notes:
 
 - `latestRevision.latestOutput` may be `null` before the first user request.
+- When older turns are compacted, `latestRevision.conversationSummary` contains the server-generated summary and `latestRevision.compactedUserMessageCount` reports how many user turns were compacted.
 
 ### `GET /recipes/generations/:generationId/revisions/latest`
 

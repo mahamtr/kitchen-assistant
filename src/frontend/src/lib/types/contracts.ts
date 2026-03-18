@@ -120,6 +120,8 @@ export interface WeeklyPlanRevisionResponse {
   revisionNumber: number;
   chat: ChatMessage[];
   latestOutput: WeeklyPlanRevision['latestOutput'];
+  conversationSummary?: string;
+  compactedUserMessageCount?: number;
 }
 
 export interface GroceryListResponse {

@@ -51,7 +51,28 @@ export class PlannerDraftContextBuilder {
       preferences: params.preferences,
       allowedRecipes: params.allowedRecipes,
       currentDraft: this.getBaseDraft(params.plan, params.latestRevision),
-      chat: params.latestRevision.chat.map((entry) => ({
+      chat: this.toAiChatEntries(params.latestRevision),
+      userMessage: params.userMessage,
+    };
+  }
+
+  private toAiChatEntries(latestRevision: WeeklyPlanRevisionRecord) {
+    const compacted = latestRevision.compactedUserMessageCount ?? 0;
+    const summary = latestRevision.conversationSummary?.trim();
+    const summaryEntry =
+      summary && compacted > 0
+        ? [
+            {
+              role: 'assistant' as const,
+              content: `Conversation summary after ${compacted} user turns:\n${summary}`,
+              timestamp: latestRevision.updatedAt.toISOString(),
+            },
+          ]
+        : [];
+
+    return [
+      ...summaryEntry,
+      ...latestRevision.chat.map((entry) => ({
         role:
           (entry.role === 'assistant' ? 'assistant' : 'user') as
             | 'assistant'
@@ -59,8 +80,7 @@ export class PlannerDraftContextBuilder {
         content: entry.content,
         timestamp: entry.timestamp.toISOString(),
       })),
-      userMessage: params.userMessage,
-    };
+    ];
   }
 
   private getBaseDraft(

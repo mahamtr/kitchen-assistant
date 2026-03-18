@@ -1,14 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
+import { ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Paragraph, Text, XStack, YStack } from 'tamagui';
 import AppScaffold from '../../components/layout/AppScaffold';
-import {
-  ActionButton,
-  SectionCard,
-  StickyFooter,
-  TextField,
-  palette,
-} from '../../components/ui/primitives';
+import { ActionButton, SectionCard, StickyFooter, TextField, palette } from '../../components/ui/primitives';
+import { CompactionNotice } from '../../components/chat/CompactionNotice';
 import { plannerService } from '../../lib/services';
 import { useUiStore } from '../../lib/store/uiStore';
 import type { WeeklyPlanRevisionResponse } from '../../lib/types/contracts';
@@ -21,7 +17,7 @@ export default function PlannerChatScreen() {
   const router = useRouter();
   const pushToast = useUiStore((state) => state.pushToast);
   const [revision, setRevision] = useState<WeeklyPlanRevisionResponse | null>(null);
-  const [message, setMessage] = useState('Please make Tue-Thu dinners lighter and add more high-protein lunches.');
+  const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(true);
   const [working, setWorking] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -81,6 +77,8 @@ export default function PlannerChatScreen() {
   };
 
   const chatMessages = useMemo(() => revision?.chat.slice(-3) ?? [], [revision]);
+  const compactedUserMessageCount = revision?.compactedUserMessageCount ?? 0;
+  const compactSummary = revision?.conversationSummary?.trim() ?? '';
 
   return (
     <AppScaffold
@@ -144,33 +142,48 @@ export default function PlannerChatScreen() {
             <Text color={palette.primaryStrong} fontSize={14} fontWeight="700">
               Assistant
             </Text>
-            <YStack gap={8}>
-              {chatMessages.map((entry) => (
-                <YStack
-                  key={entry.id}
-                  alignSelf={entry.role === 'user' ? 'flex-end' : 'flex-start'}
-                  maxWidth="92%"
-                  borderRadius={8}
-                  padding={8}
-                  backgroundColor={entry.role === 'assistant' ? palette.primarySoft : palette.surfaceSoft}
-                >
-                  <Text
-                    color={entry.role === 'assistant' ? palette.primaryStrong : palette.success}
-                    fontSize={12}
-                    fontWeight="700"
+            <CompactionNotice
+              compactedUserMessageCount={compactedUserMessageCount}
+              compactSummary={compactSummary}
+              infoToggleTestId="planner-compaction-info-toggle"
+              summaryToggleTestId="planner-compact-summary-toggle"
+              summaryDrawerTestId="planner-compact-summary-drawer"
+            />
+            <ScrollView
+              testID="planner-chat-scroll"
+              style={{ maxHeight: 220 }}
+              contentContainerStyle={{ gap: 8 }}
+              nestedScrollEnabled
+            >
+              <YStack gap={8}>
+                {chatMessages.map((entry) => (
+                  <YStack
+                    key={entry.id}
+                    alignSelf={entry.role === 'user' ? 'flex-end' : 'flex-start'}
+                    maxWidth="92%"
+                    borderRadius={8}
+                    padding={8}
+                    backgroundColor={entry.role === 'assistant' ? palette.primarySoft : palette.successSoft}
                   >
-                    {entry.role === 'assistant' ? 'Assistant' : 'You'}
-                  </Text>
-                  <Paragraph color={palette.textStrong} fontSize={13} lineHeight={18}>
-                    {entry.content}
-                  </Paragraph>
-                </YStack>
-              ))}
-            </YStack>
+                    <Text
+                      color={entry.role === 'assistant' ? palette.primaryStrong : palette.success}
+                      fontSize={12}
+                      fontWeight="700"
+                    >
+                      {entry.role === 'assistant' ? 'Assistant' : 'You'}
+                    </Text>
+                    <Paragraph color={palette.textStrong} fontSize={13} lineHeight={18}>
+                      {entry.content}
+                    </Paragraph>
+                  </YStack>
+                ))}
+              </YStack>
+            </ScrollView>
             <TextField
               value={message}
               onChangeText={setMessage}
-              placeholder="Type your custom changes"
+              placeholder="What should we adjust in this weekly plan?"
+              multiline
             />
             <ActionButton variant="secondary" onPress={createRevision} disabled={working || !message.trim()}>
               {working ? 'Updating...' : 'Update Draft'}
