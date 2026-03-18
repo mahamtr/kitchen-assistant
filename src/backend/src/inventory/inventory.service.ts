@@ -63,7 +63,7 @@ export class InventoryService {
     private readonly weeklyPlanModel: Model<WeeklyPlanRecord>,
     private readonly usersService: UsersService,
     private readonly defaultDataFactory: DefaultDataFactory,
-  ) {}
+  ) { }
 
   async getSummary(authUser: AuthenticatedUser) {
     const user = await this.usersService.ensureUser(authUser);
@@ -312,7 +312,7 @@ export class InventoryService {
         throw new BadRequestException('Inventory quantity must be an object.');
       }
       nextPatch.quantity = normalizeOptionalMeasurement(
-        patch.quantity as InventoryItemRecord['quantity'],
+        patch.quantity as unknown as InventoryItemRecord['quantity'],
       );
     }
 
@@ -649,9 +649,9 @@ export class InventoryService {
     name: string,
     current:
       | {
-          value: number | null;
-          unit: string | null;
-        }
+        value: number | null;
+        unit: string | null;
+      }
       | undefined,
     incoming: {
       value: number;

@@ -346,6 +346,12 @@ describe('Planner command handlers', () => {
           content: 'Second request',
           timestamp: new Date('2026-03-09T08:03:00.000Z'),
         },
+        {
+          _id: new Types.ObjectId(),
+          role: 'assistant',
+          content: 'Third response',
+          timestamp: new Date('2026-03-09T08:04:00.000Z'),
+        },
       ],
       conversationSummary: '',
       compactedUserMessageCount: 0,
@@ -398,11 +404,153 @@ describe('Planner command handlers', () => {
 
     expect(weeklyPlanRevisionModel.create).toHaveBeenCalledWith(
       expect.objectContaining({
-        compactedUserMessageCount: 3,
+        compactedUserMessageCount: 1,
       }),
     );
     const createdPayload = weeklyPlanRevisionModel.create.mock.calls[0][0];
-    expect(createdPayload.chat).toHaveLength(2);
+    expect(createdPayload.chat).toHaveLength(4);
+    expect(createdPayload.chat[0]?.content).toBe('Second request');
+    expect(createdPayload.conversationSummary).toContain(
+      'Recent assistant rationale: First response',
+    );
+  });
+
+  it('waits for three new visible planner user turns before compacting again', async () => {
+    const userId = new Types.ObjectId();
+    const planId = new Types.ObjectId();
+    const latestOutput = buildHybridOutput(
+      factory.createPlannerRecipeCatalog(
+        userId,
+        new Date('2026-03-09T00:00:00.000Z'),
+      ) as RecipeRecord[],
+    );
+    const plan = {
+      _id: planId,
+      userId,
+      status: 'active',
+    } as WeeklyPlanRecord;
+    const recipes = factory.createPlannerRecipeCatalog(
+      userId,
+      new Date('2026-03-09T00:00:00.000Z'),
+    ) as RecipeRecord[];
+    const latestRevision = {
+      _id: new Types.ObjectId(),
+      weeklyPlanId: planId,
+      userId,
+      revisionNumber: 4,
+      chat: [
+        {
+          _id: new Types.ObjectId(),
+          role: 'user',
+          content: 'Visible request zero',
+          timestamp: new Date('2026-03-09T08:00:00.000Z'),
+        },
+        {
+          _id: new Types.ObjectId(),
+          role: 'assistant',
+          content: 'Visible response zero',
+          timestamp: new Date('2026-03-09T08:00:30.000Z'),
+        },
+        {
+          _id: new Types.ObjectId(),
+          role: 'user',
+          content: 'Visible request one',
+          timestamp: new Date('2026-03-09T08:01:00.000Z'),
+        },
+        {
+          _id: new Types.ObjectId(),
+          role: 'assistant',
+          content: 'Visible response one',
+          timestamp: new Date('2026-03-09T08:02:00.000Z'),
+        },
+        {
+          _id: new Types.ObjectId(),
+          role: 'user',
+          content: 'Visible request two',
+          timestamp: new Date('2026-03-09T08:03:00.000Z'),
+        },
+        {
+          _id: new Types.ObjectId(),
+          role: 'assistant',
+          content: 'Visible response two',
+          timestamp: new Date('2026-03-09T08:04:00.000Z'),
+        },
+        {
+          _id: new Types.ObjectId(),
+          role: 'user',
+          content: 'Visible request three',
+          timestamp: new Date('2026-03-09T08:05:00.000Z'),
+        },
+        {
+          _id: new Types.ObjectId(),
+          role: 'assistant',
+          content: 'Visible response three',
+          timestamp: new Date('2026-03-09T08:06:00.000Z'),
+        },
+      ],
+      conversationSummary: 'Recent user requests: Older request',
+      compactedUserMessageCount: 1,
+      latestOutput,
+      updatedAt: new Date('2026-03-09T08:04:00.000Z'),
+    } as unknown as WeeklyPlanRevisionRecord;
+    const weeklyPlanRevisionModel = {
+      findOne: jest.fn().mockReturnValue(sortedResult(latestRevision)),
+      create: jest.fn().mockResolvedValue({ ...latestRevision, _id: new Types.ObjectId() }),
+    };
+    const plannerReadService = {
+      requireUser: jest.fn().mockResolvedValue({ _id: userId }),
+      requireCompletedPreferenceDocument: jest
+        .fn()
+        .mockResolvedValue({ profile: factory.createDefaultProfile() }),
+      requirePlanDocument: jest.fn().mockResolvedValue(plan),
+      getWeekContextFromPlan: jest
+        .fn()
+        .mockReturnValue(factory.createWeekScaffold(new Date('2026-03-09T00:00:00.000Z'))),
+      toRevisionResponse: jest.fn().mockReturnValue({ revisionNumber: 5 }),
+    };
+    const plannerRecipeCatalogService = {
+      getOrSeedCatalog: jest.fn().mockResolvedValue(recipes),
+      toAllowedRecipe: jest.fn((recipe: RecipeRecord) => ({
+        recipeId: recipe._id.toString(),
+        title: recipe.title,
+        summary: recipe.summary ?? '',
+        calories: 480,
+        tags: recipe.tags ?? [],
+      })),
+    };
+    const plannerAiService = { reviseDraft: jest.fn().mockResolvedValue(latestOutput) };
+    const plannerDraftContextBuilder = { buildRevisionContext: jest.fn().mockReturnValue({}) };
+
+    const handler = new CreateWeeklyPlanRevisionHandler(
+      weeklyPlanRevisionModel as never,
+      plannerReadService as never,
+      plannerRecipeCatalogService as never,
+      plannerAiService as never,
+      plannerDraftContextBuilder as never,
+    );
+
+    await handler.execute(
+      new CreateWeeklyPlanRevisionCommand(
+        authUser,
+        planId.toString(),
+        'Third new visible request',
+      ),
+    );
+
+    expect(weeklyPlanRevisionModel.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        compactedUserMessageCount: 4,
+      }),
+    );
+    const createdPayload = weeklyPlanRevisionModel.create.mock.calls[0][0];
+    expect(createdPayload.chat).toHaveLength(4);
+    expect(createdPayload.chat[0]?.content).toBe('Visible request three');
+    expect(createdPayload.conversationSummary).toContain(
+      'Recent user requests: Older request',
+    );
+    expect(createdPayload.conversationSummary).toContain(
+      'Recent user requests: Visible request zero | Visible request one | Visible request two',
+    );
   });
 
   it('AcceptWeeklyPlanRevisionHandler materializes inline recipes and rewrites the accepted plan', async () => {
