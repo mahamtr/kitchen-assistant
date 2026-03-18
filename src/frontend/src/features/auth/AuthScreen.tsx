@@ -92,6 +92,24 @@ export default function AuthScreen({ mode }: { mode: AuthMode }) {
     }
   };
 
+  const continueWithGoogle = async () => {
+    setLoading(true);
+    setMessage(null);
+    setError(null);
+
+    try {
+      const session = await authService.signInWithGoogle();
+
+      if (session) {
+        router.replace('/');
+      }
+    } catch (caughtError) {
+      setError(caughtError instanceof Error ? caughtError.message : 'Google sign-in failed.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <YStack flex={1} backgroundColor={palette.background} paddingBottom={keyboardHeight}>
       <ScrollView
@@ -228,18 +246,24 @@ export default function AuthScreen({ mode }: { mode: AuthMode }) {
             </ActionButton>
 
             {!isReset ? (
-              <Paragraph color={palette.textMuted} textAlign="center" fontSize={12}>
-                Email and password sign-in is currently the supported login flow.
-              </Paragraph>
-            ) : null}
+              <>
+                <ActionButton variant="ghost" onPress={continueWithGoogle} disabled={loading}>
+                  Continue with Google
+                </ActionButton>
 
-            <ActionButton
-              variant="ghost"
-              onPress={() => router.push(isLogin ? '/signup' : '/login')}
-              disabled={loading}
-            >
-              {isLogin ? 'Create account' : 'Already have an account? Sign in'}
-            </ActionButton>
+                <Paragraph color={palette.textMuted} textAlign="center" fontSize={12}>
+                  Or continue with your email and password.
+                </Paragraph>
+
+                <ActionButton
+                  variant="ghost"
+                  onPress={() => router.push(isLogin ? '/signup' : '/login')}
+                  disabled={loading}
+                >
+                  {isLogin ? 'Create account' : 'Already have an account? Sign in'}
+                </ActionButton>
+              </>
+            ) : null}
           </SectionCard>
 
           {isSignup ? (

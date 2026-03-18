@@ -120,4 +120,37 @@ describe('InventoryService', () => {
     expect(result.dates.expiresAt).toBe('2026-03-20T00:00:00.000Z');
     expect(result.metadata).toEqual({ shelf: 'top' });
   });
+
+  it('rejects unsupported inventory quantity units', async () => {
+    const userId = new Types.ObjectId();
+    const inventoryItemModel = createModelMock();
+    const inventoryEventModel = createModelMock();
+    const groceryListModel = createModelMock();
+    const weeklyPlanModel = createModelMock();
+    const usersService = {
+      ensureUser: jest.fn().mockResolvedValue({ _id: userId }),
+    };
+    const item = createInventoryItem(userId);
+
+    inventoryItemModel.findOne.mockResolvedValue(item);
+
+    const service = new InventoryService(
+      inventoryItemModel as never,
+      inventoryEventModel as never,
+      groceryListModel as never,
+      weeklyPlanModel as never,
+      usersService as never,
+      new DefaultDataFactory(),
+    );
+
+    await expect(
+      service.patchItem(authUser as never, item._id.toString(), {
+        quantity: {
+          value: 1,
+          unit: 'cup',
+        },
+      }),
+    ).rejects.toThrow('Unsupported measurement unit: cup');
+    expect(item.save).not.toHaveBeenCalled();
+  });
 });

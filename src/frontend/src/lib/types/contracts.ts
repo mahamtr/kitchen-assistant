@@ -41,6 +41,11 @@ export interface SignUpRequest {
   password: string;
 }
 
+export interface GoogleSignInRequest {
+  idToken: string;
+  nonce?: string;
+}
+
 export interface ForgotPasswordRequest {
   email: string;
 }
