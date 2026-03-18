@@ -1,16 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Pressable, ScrollView } from 'react-native';
+import { ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Paragraph, Text, XStack, YStack } from 'tamagui';
 import AppScaffold from '../../components/layout/AppScaffold';
-import {
-  ActionButton,
-  AppIcon,
-  SectionCard,
-  StickyFooter,
-  TextField,
-  palette,
-} from '../../components/ui/primitives';
+import { ActionButton, SectionCard, StickyFooter, TextField, palette } from '../../components/ui/primitives';
+import { CompactionNotice } from '../../components/chat/CompactionNotice';
 import { plannerService } from '../../lib/services';
 import { useUiStore } from '../../lib/store/uiStore';
 import type { WeeklyPlanRevisionResponse } from '../../lib/types/contracts';
@@ -27,8 +21,6 @@ export default function PlannerChatScreen() {
   const [loading, setLoading] = useState(true);
   const [working, setWorking] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [showCompactionInfo, setShowCompactionInfo] = useState(false);
-  const [showCompactSummary, setShowCompactSummary] = useState(false);
 
   const load = async () => {
     try {
@@ -87,7 +79,6 @@ export default function PlannerChatScreen() {
   const chatMessages = useMemo(() => revision?.chat.slice(-3) ?? [], [revision]);
   const compactedUserMessageCount = revision?.compactedUserMessageCount ?? 0;
   const compactSummary = revision?.conversationSummary?.trim() ?? '';
-  const hasCompactedContext = compactedUserMessageCount > 0 && compactSummary.length > 0;
 
   return (
     <AppScaffold
@@ -151,69 +142,13 @@ export default function PlannerChatScreen() {
             <Text color={palette.primaryStrong} fontSize={14} fontWeight="700">
               Assistant
             </Text>
-            {hasCompactedContext ? (
-              <YStack gap={8}>
-                <XStack
-                  backgroundColor={palette.surfaceSoft}
-                  borderColor={palette.border}
-                  borderWidth={1}
-                  borderRadius={8}
-                  paddingHorizontal={10}
-                  paddingVertical={8}
-                  alignItems="center"
-                  justifyContent="space-between"
-                  gap={10}
-                >
-                  <XStack alignItems="center" gap={6} flex={1}>
-                    <AppIcon name="auto-awesome" size={14} color={palette.textMuted} />
-                    <Text color={palette.textSecondary} fontSize={11} fontWeight="600">
-                      Context summarized after {compactedUserMessageCount} user turns.
-                    </Text>
-                  </XStack>
-                  <Pressable
-                    testID="planner-compaction-info-toggle"
-                    onPress={() => setShowCompactionInfo((current) => !current)}
-                  >
-                    <AppIcon name="info-outline" size={15} color={palette.textMuted} />
-                  </Pressable>
-                </XStack>
-                {showCompactionInfo ? (
-                  <Paragraph color={palette.textSecondary} fontSize={12} lineHeight={18}>
-                    To keep responses concise, fast, and privacy-minded, older turns are compacted into a short system
-                    summary while your latest messages stay in chat.
-                  </Paragraph>
-                ) : null}
-                <Pressable
-                  testID="planner-compact-summary-toggle"
-                  onPress={() => setShowCompactSummary((current) => !current)}
-                >
-                  <XStack alignItems="center" gap={6}>
-                    <Text color={palette.primaryStrong} fontSize={12} fontWeight="700">
-                      {showCompactSummary ? 'Hide compact summary' : 'View compact summary'}
-                    </Text>
-                    <AppIcon
-                      name={showCompactSummary ? 'keyboard-arrow-up' : 'keyboard-arrow-down'}
-                      size={16}
-                      color={palette.primaryStrong}
-                    />
-                  </XStack>
-                </Pressable>
-                {showCompactSummary ? (
-                  <YStack
-                    testID="planner-compact-summary-drawer"
-                    backgroundColor={palette.surfaceSoft}
-                    borderColor={palette.border}
-                    borderWidth={1}
-                    borderRadius={8}
-                    padding={10}
-                  >
-                    <Paragraph color={palette.textSecondary} fontSize={12} lineHeight={18}>
-                      {compactSummary}
-                    </Paragraph>
-                  </YStack>
-                ) : null}
-              </YStack>
-            ) : null}
+            <CompactionNotice
+              compactedUserMessageCount={compactedUserMessageCount}
+              compactSummary={compactSummary}
+              infoToggleTestId="planner-compaction-info-toggle"
+              summaryToggleTestId="planner-compact-summary-toggle"
+              summaryDrawerTestId="planner-compact-summary-drawer"
+            />
             <ScrollView
               testID="planner-chat-scroll"
               style={{ maxHeight: 220 }}
@@ -228,7 +163,7 @@ export default function PlannerChatScreen() {
                     maxWidth="92%"
                     borderRadius={8}
                     padding={8}
-                    backgroundColor={entry.role === 'assistant' ? palette.primarySoft : palette.surfaceSoft}
+                    backgroundColor={entry.role === 'assistant' ? palette.primarySoft : palette.successSoft}
                   >
                     <Text
                       color={entry.role === 'assistant' ? palette.primaryStrong : palette.success}

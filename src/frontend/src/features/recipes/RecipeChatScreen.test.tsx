@@ -80,7 +80,7 @@ describe('RecipeChatScreen', () => {
     expect(screen.getByText('Context summarized after 3 user turns.')).toBeTruthy();
 
     fireEvent.press(screen.getByTestId('recipe-compaction-info-toggle'));
-    expect(screen.getByText(/concise, fast, and privacy-minded/i)).toBeTruthy();
+    expect(screen.getByText(/privacy and faster responses/i)).toBeTruthy();
 
     fireEvent.press(screen.getByTestId('recipe-compact-summary-toggle'));
     expect(screen.getByTestId('recipe-compact-summary-drawer')).toBeTruthy();

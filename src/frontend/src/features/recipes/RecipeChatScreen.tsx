@@ -1,16 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Pressable, ScrollView } from 'react-native';
+import { ScrollView } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Paragraph, Text, XStack, YStack } from 'tamagui';
 import AppScaffold from '../../components/layout/AppScaffold';
-import {
-  ActionButton,
-  AppIcon,
-  SectionCard,
-  StickyFooter,
-  TextField,
-  palette,
-} from '../../components/ui/primitives';
+import { ActionButton, SectionCard, StickyFooter, TextField, palette } from '../../components/ui/primitives';
+import { CompactionNotice } from '../../components/chat/CompactionNotice';
 import { recipesService } from '../../lib/services';
 import { useUiStore } from '../../lib/store/uiStore';
 import type { RecipeGenerationResponse } from '../../lib/types/contracts';
@@ -22,8 +16,6 @@ export default function RecipeChatScreen() {
   const [data, setData] = useState<RecipeGenerationResponse | null>(null);
   const [message, setMessage] = useState('');
   const [working, setWorking] = useState(false);
-  const [showCompactionInfo, setShowCompactionInfo] = useState(false);
-  const [showCompactSummary, setShowCompactSummary] = useState(false);
 
   const load = async () => {
     setData(await recipesService.getGeneration(generationId));
@@ -39,7 +31,6 @@ export default function RecipeChatScreen() {
   const latestUserMessage = [...chatMessages].reverse().find((entry) => entry.role === 'user');
   const compactedUserMessageCount = latestRevision?.compactedUserMessageCount ?? 0;
   const compactSummary = latestRevision?.conversationSummary?.trim() ?? '';
-  const hasCompactedContext = compactedUserMessageCount > 0 && compactSummary.length > 0;
 
   return (
     <AppScaffold
@@ -126,69 +117,13 @@ export default function RecipeChatScreen() {
             <Text color={palette.text} fontSize={15} fontWeight="700">
               Chef chat
             </Text>
-            {hasCompactedContext ? (
-              <YStack gap={8}>
-                <XStack
-                  backgroundColor={palette.surfaceSoft}
-                  borderColor={palette.border}
-                  borderWidth={1}
-                  borderRadius={8}
-                  paddingHorizontal={10}
-                  paddingVertical={8}
-                  alignItems="center"
-                  justifyContent="space-between"
-                  gap={10}
-                >
-                  <XStack alignItems="center" gap={6} flex={1}>
-                    <AppIcon name="auto-awesome" size={14} color={palette.textMuted} />
-                    <Text color={palette.textSecondary} fontSize={11} fontWeight="600">
-                      Context summarized after {compactedUserMessageCount} user turns.
-                    </Text>
-                  </XStack>
-                  <Pressable
-                    testID="recipe-compaction-info-toggle"
-                    onPress={() => setShowCompactionInfo((current) => !current)}
-                  >
-                    <AppIcon name="info-outline" size={15} color={palette.textMuted} />
-                  </Pressable>
-                </XStack>
-                {showCompactionInfo ? (
-                  <Paragraph color={palette.textSecondary} fontSize={12} lineHeight={18}>
-                    To keep responses concise, fast, and privacy-minded, older turns are compacted into a short system
-                    summary while your latest messages stay in chat.
-                  </Paragraph>
-                ) : null}
-                <Pressable
-                  testID="recipe-compact-summary-toggle"
-                  onPress={() => setShowCompactSummary((current) => !current)}
-                >
-                  <XStack alignItems="center" gap={6}>
-                    <Text color={palette.primaryStrong} fontSize={12} fontWeight="700">
-                      {showCompactSummary ? 'Hide compact summary' : 'View compact summary'}
-                    </Text>
-                    <AppIcon
-                      name={showCompactSummary ? 'keyboard-arrow-up' : 'keyboard-arrow-down'}
-                      size={16}
-                      color={palette.primaryStrong}
-                    />
-                  </XStack>
-                </Pressable>
-                {showCompactSummary ? (
-                  <YStack
-                    testID="recipe-compact-summary-drawer"
-                    backgroundColor={palette.surfaceSoft}
-                    borderColor={palette.border}
-                    borderWidth={1}
-                    borderRadius={8}
-                    padding={10}
-                  >
-                    <Paragraph color={palette.textSecondary} fontSize={12} lineHeight={18}>
-                      {compactSummary}
-                    </Paragraph>
-                  </YStack>
-                ) : null}
-              </YStack>
-            ) : null}
+            <CompactionNotice
+              compactedUserMessageCount={compactedUserMessageCount}
+              compactSummary={compactSummary}
+              infoToggleTestId="recipe-compaction-info-toggle"
+              summaryToggleTestId="recipe-compact-summary-toggle"
+              summaryDrawerTestId="recipe-compact-summary-drawer"
+            />
             <ScrollView
               testID="recipe-chat-scroll"
               style={{ maxHeight: 260 }}

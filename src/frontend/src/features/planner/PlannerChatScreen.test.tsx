@@ -73,7 +73,7 @@ describe('PlannerChatScreen', () => {
     ).toBeNull();
 
     fireEvent.press(screen.getByTestId('planner-compaction-info-toggle'));
-    expect(screen.getByText(/concise, fast, and privacy-minded/i)).toBeTruthy();
+    expect(screen.getByText(/privacy and faster responses/i)).toBeTruthy();
 
     fireEvent.press(screen.getByTestId('planner-compact-summary-toggle'));
     expect(screen.getByTestId('planner-compact-summary-drawer')).toBeTruthy();
