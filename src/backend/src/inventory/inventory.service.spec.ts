@@ -299,6 +299,53 @@ describe('InventoryService', () => {
     expect(inStockResult.replenishmentState).toBe('in_stock');
   });
 
+  it('rejects invalid reorderPoint and targetOnHand patch values', async () => {
+    const userId = new Types.ObjectId();
+    const inventoryItemModel = createModelMock();
+    const inventoryEventModel = createModelMock();
+    const groceryListModel = createModelMock();
+    const weeklyPlanModel = createModelMock();
+    const usersService = {
+      ensureUser: jest.fn().mockResolvedValue({ _id: userId }),
+    };
+
+    const service = new InventoryService(
+      inventoryItemModel as never,
+      inventoryEventModel as never,
+      groceryListModel as never,
+      weeklyPlanModel as never,
+      usersService as never,
+      new DefaultDataFactory(),
+    );
+
+    const item = createInventoryItem(userId);
+    inventoryItemModel.findOne.mockResolvedValue(item);
+
+    await expect(
+      service.patchItem(authUser as never, item._id.toString(), {
+        reorderPoint: Number.NaN as unknown as number,
+      }),
+    ).rejects.toThrow('Inventory reorderPoint must be a finite non-negative number or null.');
+
+    await expect(
+      service.patchItem(authUser as never, item._id.toString(), {
+        targetOnHand: Number.POSITIVE_INFINITY as unknown as number,
+      }),
+    ).rejects.toThrow('Inventory targetOnHand must be a finite non-negative number or null.');
+
+    await expect(
+      service.patchItem(authUser as never, item._id.toString(), {
+        reorderPoint: -1,
+      }),
+    ).rejects.toThrow('Inventory reorderPoint must be a finite non-negative number or null.');
+
+    await expect(
+      service.patchItem(authUser as never, item._id.toString(), {
+        targetOnHand: -2,
+      }),
+    ).rejects.toThrow('Inventory targetOnHand must be a finite non-negative number or null.');
+  });
+
   it('supports legacy status-only inventory documents in list filters', async () => {
     const userId = new Types.ObjectId();
     const inventoryItemModel = createModelMock();

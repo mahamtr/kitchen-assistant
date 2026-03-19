@@ -570,13 +570,16 @@ Item detail payload for sheet/dialog.
 
 ### `PATCH /inventory/items/:itemId`
 
-Manual item edits (quantity/unit/location/dates/status).
+Manual item edits (quantity/unit/location/dates/freshness state/thresholds).
 
 Notes:
 
 - Supported quantity units for new writes are `g`, `kg`, `ml`, `l`, `piece`, `clove`, `egg`, `can`, `jar`, `pack`, `fillet`, `slice`.
 - Backend normalizes `kg -> g` and `l -> ml` before persistence.
 - Unsupported units such as `cup`, `tbsp`, and `tsp` should fail validation.
+- `freshnessState` accepts `fresh | use_soon | expired | unknown`; when omitted, backend derives it from expiry dates.
+- `replenishmentState` accepts `in_stock | low_stock | out_of_stock`; when omitted, backend derives it from quantity and reorder policy.
+- `reorderPoint` and `targetOnHand` must be finite non-negative numbers or `null`.
 
 ### `POST /inventory/items/:itemId/discard`
 

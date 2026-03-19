@@ -342,15 +342,29 @@ export class InventoryService {
     }
 
     if ('reorderPoint' in patch) {
-      if (patch.reorderPoint !== null && typeof patch.reorderPoint !== 'number') {
-        throw new BadRequestException('Inventory reorderPoint must be a number or null.');
+      if (
+        patch.reorderPoint !== null &&
+        (typeof patch.reorderPoint !== 'number' ||
+          !Number.isFinite(patch.reorderPoint) ||
+          patch.reorderPoint < 0)
+      ) {
+        throw new BadRequestException(
+          'Inventory reorderPoint must be a finite non-negative number or null.',
+        );
       }
       nextPatch.reorderPoint = patch.reorderPoint as number | null;
     }
 
     if ('targetOnHand' in patch) {
-      if (patch.targetOnHand !== null && typeof patch.targetOnHand !== 'number') {
-        throw new BadRequestException('Inventory targetOnHand must be a number or null.');
+      if (
+        patch.targetOnHand !== null &&
+        (typeof patch.targetOnHand !== 'number' ||
+          !Number.isFinite(patch.targetOnHand) ||
+          patch.targetOnHand < 0)
+      ) {
+        throw new BadRequestException(
+          'Inventory targetOnHand must be a finite non-negative number or null.',
+        );
       }
       nextPatch.targetOnHand = patch.targetOnHand as number | null;
     }
