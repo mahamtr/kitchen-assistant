@@ -202,7 +202,7 @@ describe('PlannerGroceryProjector', () => {
     );
   });
 
-  it('queries inventory using split-state exclusions for expired and out-of-stock items', async () => {
+  it('loads user inventory and applies split-state eligibility filtering in projection logic', async () => {
     const userId = new Types.ObjectId();
     const weeklyPlanId = new Types.ObjectId();
     const recipeId = new Types.ObjectId();
@@ -245,11 +245,83 @@ describe('PlannerGroceryProjector', () => {
       },
     ] as WeeklyPlanDayValue[]);
 
-    expect(inventoryModel.find).toHaveBeenCalledWith({
-      userId,
-      freshnessState: { $ne: 'expired' },
-      replenishmentState: { $ne: 'out_of_stock' },
-    });
+    expect(inventoryModel.find).toHaveBeenCalledWith({ userId });
+  });
+
+  it('excludes legacy expired inventory and still counts legacy low-stock inventory in projection', async () => {
+    const userId = new Types.ObjectId();
+    const weeklyPlanId = new Types.ObjectId();
+    const recipeId = new Types.ObjectId();
+    const inventoryModel = {
+      find: jest.fn().mockResolvedValue([
+        {
+          name: 'Eggs',
+          canonicalKey: 'egg',
+          quantity: { value: 1, unit: 'piece' },
+          status: 'low_stock',
+        },
+        {
+          name: 'Eggs',
+          canonicalKey: 'egg',
+          quantity: { value: 10, unit: 'piece' },
+          status: 'expired',
+        },
+      ]),
+    };
+    const recipeModel = {
+      find: jest.fn().mockResolvedValue([
+        {
+          _id: recipeId,
+          userId,
+          ingredients: [
+            {
+              name: 'Eggs',
+              measurement: {
+                value: 2,
+                unit: 'egg',
+              },
+            },
+          ],
+        },
+      ] satisfies Partial<RecipeRecord>[]),
+    };
+    const groceryListModel = {
+      findOne: jest.fn().mockResolvedValue(null),
+      create: jest.fn().mockResolvedValue(undefined),
+    };
+    const projector = new PlannerGroceryProjector(
+      groceryListModel as never,
+      inventoryModel as never,
+      recipeModel as never,
+    );
+
+    await projector.rebuildFromAcceptedPlan(userId, weeklyPlanId, [
+      {
+        dayKey: 'mon',
+        label: 'Mon, Mar 9',
+        meals: [
+          {
+            slot: 'breakfast',
+            recipeId,
+            title: 'Any',
+            shortLabel: 'Any',
+            calories: 100,
+            tags: [],
+          },
+        ],
+      },
+    ] as WeeklyPlanDayValue[]);
+
+    expect(groceryListModel.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        items: [
+          expect.objectContaining({
+            name: 'Eggs',
+            quantity: { value: 1, unit: 'egg' },
+          }),
+        ],
+      }),
+    );
   });
 
   it('does not add weekly plan items already covered by inventory stock', async () => {

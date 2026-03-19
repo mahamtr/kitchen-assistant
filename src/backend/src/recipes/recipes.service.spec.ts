@@ -793,7 +793,7 @@ describe('RecipesService', () => {
     expect(result.revision.latestOutput?.title).toBe('Garlic Turkey Rice Bowl');
   });
 
-  it('excludes expired and out-of-stock inventory from recipe AI context', async () => {
+  it('excludes expired and out-of-stock inventory from recipe AI context with legacy status fallback', async () => {
     const userId = new Types.ObjectId();
     const generationId = new Types.ObjectId();
     const revisionId = new Types.ObjectId();
@@ -869,10 +869,22 @@ describe('RecipesService', () => {
         location: 'fridge',
       },
       {
+        name: 'Cucumber',
+        quantity: { value: 1, unit: 'piece' },
+        status: 'low_stock',
+        location: 'fridge',
+      },
+      {
         name: 'Milk',
         quantity: { value: 1, unit: 'l' },
         freshnessState: 'expired',
         replenishmentState: 'in_stock',
+        location: 'fridge',
+      },
+      {
+        name: 'Yogurt',
+        quantity: { value: 1, unit: 'piece' },
+        status: 'expired',
         location: 'fridge',
       },
       {
@@ -928,6 +940,11 @@ describe('RecipesService', () => {
             name: 'Carrot',
             quantity: { value: 2, unit: 'piece' },
             status: 'fresh',
+          }),
+          expect.objectContaining({
+            name: 'Cucumber',
+            quantity: { value: 1, unit: 'piece' },
+            status: 'unknown',
           }),
         ],
       }),
