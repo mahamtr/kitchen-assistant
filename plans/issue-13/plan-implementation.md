@@ -83,7 +83,16 @@ This approach eliminates hidden coupling now rather than carrying temporary dual
 7. **Type-level contract safety**
    - frontend entities/contracts remove `InventoryStatus` mixed enum and use explicit split enums.
    - test target: compile-time + affected UI tests/mocks updated accordingly.
-8. **Docs contract alignment**
+8. **Freshness classification thresholds**
+   - explicit tests for date-driven state transitions (`fresh` -> `use_soon` -> `expired`) and `unknown` when dates missing.
+   - test target: `inventory.service.spec.ts` (and helper-level unit tests if extracted).
+9. **Same-item different-expiry behavior**
+   - adding purchased quantity for an existing canonical item with a different expiry should preserve expiry visibility (separate rows or equivalent lot-safe strategy).
+   - test target: `grocery.service.spec.ts` + inventory service tests around merge behavior.
+10. **Replenishment threshold policy**
+   - backend derives replenishment from threshold fields; tests cover default policy and edge values.
+   - test target: inventory service tests (and pure policy helper tests if introduced).
+11. **Docs contract alignment**
    - entity docs and endpoints docs reflect split fields and no legacy `status` contract.
 
 ## UI and Behavior
@@ -91,6 +100,22 @@ This approach eliminates hidden coupling now rather than carrying temporary dual
 - `In Stock` depends on replenishment state and usable quantity rules, not freshness state.
 - `Expiring` depends on freshness state only.
 - Kitchen item edit should not expose manual `low_stock` entry.
+- Freshness visibility remains explicit in UI:
+  - show expiry date and/or days-left text on inventory item cards/detail
+  - show freshness badge derived from `freshnessState` (`fresh`, `use soon`, `expired`, `unknown`)
+- Freshness classification should be date-driven where possible:
+  - `expired`: `expiresAt < today`
+  - `use_soon`: `expiresAt` within a configurable near-expiry window (default proposal: 0-2 days)
+  - `fresh`: `expiresAt` beyond near-expiry window
+  - `unknown`: missing/insufficient date data
+- Duplicate-by-lot behavior (same item purchased again with different expiry):
+  - keep separate inventory rows when expiry/date context differs materially
+  - avoid collapsing into one row if that would lose earliest-expiry visibility
+  - UI should naturally show both entries with different expiry indicators
+- Replenishment derivation ownership:
+  - backend derives `replenishmentState` from `quantity` + thresholds
+  - thresholds stored in backend policy fields (global/category defaults first)
+  - per-item threshold overrides are optional and can be exposed in UI only if lightweight; otherwise keep UI read-only for this issue and land editing in follow-up
 - Empty/loading/error behavior remains unchanged.
 - After save, list placement reflects recalculated split states.
 
