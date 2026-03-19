@@ -6,6 +6,8 @@
     - add a normalization / synonym layer before rendering or grouping item names
     - ensure list aggregation uses normalized canonical names, not raw AI labels
     - verify the same issue for similar variants beyond spinach
+    - move synonym / canonical vocabulary from code into a database-backed catalog so aliases can be extended without deploys
+    - add structured logging / metrics for canonicalization fallbacks so new unmapped ingredient names are visible and can be curated
 
 # Inventory item edit should refresh visible state after save:
   - After updating an inventory item, the screen still shows the old values until the page is manually refreshed or revisited.
