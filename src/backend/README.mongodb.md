@@ -317,7 +317,10 @@ Current state of tracked kitchen items.
 | `category`       | `string`                                                         | no       | Grouping                      |
 | `location`       | `'fridge' \| 'pantry' \| 'freezer' \| 'unknown'`                 | yes      | Storage location              |
 | `quantity`       | `object`                                                         | no       | `{ value, unit }`, canonical exact units for new writes |
-| `status`         | `'fresh' \| 'use_soon' \| 'expired' \| 'low_stock' \| 'unknown'` | yes      | Freshness/stock state         |
+| `replenishmentState` | `'in_stock' \| 'low_stock' \| 'out_of_stock'`                     | yes      | Stock/reorder state            |
+| `freshnessState`     | `'fresh' \| 'use_soon' \| 'expired' \| 'unknown'`                | yes      | Date-driven freshness state    |
+| `reorderPoint`       | `number \| null`                                                 | no       | Per-item low-stock threshold   |
+| `targetOnHand`       | `number \| null`                                                 | no       | Optional replenishment target  |
 | `dates`          | `object`                                                         | no       | Added/opened/expires/lastUsed |
 | `freshness`      | `object`                                                         | no       | Computed freshness data       |
 | `source`         | `'manual' \| 'ocr' \| 'recipe' \| 'adjustment' \| 'kitchen_hub'` | no       | Initial source                |

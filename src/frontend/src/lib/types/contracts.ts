@@ -220,7 +220,10 @@ export interface RecipeRatingPayload {
 export interface UpdateInventoryItemPayload {
   quantity?: InventoryItem['quantity'];
   location?: InventoryItem['location'];
-  status?: InventoryItem['status'];
+  freshnessState?: InventoryItem['freshnessState'];
+  replenishmentState?: InventoryItem['replenishmentState'];
+  reorderPoint?: InventoryItem['reorderPoint'];
+  targetOnHand?: InventoryItem['targetOnHand'];
   dates?: InventoryItem['dates'];
   metadata?: InventoryItem['metadata'];
 }

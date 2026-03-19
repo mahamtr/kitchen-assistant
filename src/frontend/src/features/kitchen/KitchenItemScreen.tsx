@@ -18,7 +18,7 @@ import { useKeyboardMetrics } from '../../hooks/useKeyboardVisible';
 import { kitchenService } from '../../lib/services';
 import { useUiStore } from '../../lib/store/uiStore';
 import type { InventoryItemDetailResponse, KitchenView } from '../../lib/types/contracts';
-import type { InventoryLocation, InventoryStatus } from '../../lib/types/entities';
+import type { InventoryLocation, InventoryFreshnessState } from '../../lib/types/entities';
 import {
   formatMeasurement,
   isCountMeasurementUnit,
@@ -111,7 +111,10 @@ export default function KitchenItemScreen() {
   const [quantityValue, setQuantityValue] = useState('');
   const [quantityUnit, setQuantityUnit] = useState('');
   const [location, setLocation] = useState<InventoryLocation>('pantry');
-  const [status, setStatus] = useState<InventoryStatus>('fresh');
+  const [freshnessState, setFreshnessState] = useState<InventoryFreshnessState>('unknown');
+  const [reorderPoint, setReorderPoint] = useState('1');
+  const [targetOnHand, setTargetOnHand] = useState('');
+  const [expiresAt, setExpiresAt] = useState('');
   const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { keyboardHeight, keyboardVisible } = useKeyboardMetrics();
@@ -124,10 +127,13 @@ export default function KitchenItemScreen() {
         setQuantityValue(String(nextDetail.item.quantity?.value ?? ''));
         setQuantityUnit(normalizeInventoryEditUnit(nextDetail.item.quantity?.unit));
         setLocation(nextDetail.item.location);
-        setStatus(nextDetail.item.status);
+        setFreshnessState(nextDetail.item.freshnessState);
+        setReorderPoint(String(nextDetail.item.reorderPoint ?? 1));
+        setTargetOnHand(nextDetail.item.targetOnHand == null ? '' : String(nextDetail.item.targetOnHand));
+        setExpiresAt(nextDetail.item.dates?.expiresAt ? nextDetail.item.dates.expiresAt.slice(0, 10) : '');
 
         const previewView: KitchenView =
-          nextDetail.item.status === 'use_soon' || nextDetail.item.status === 'expired' ? 'expiring' : 'in-stock';
+          nextDetail.item.freshnessState === 'use_soon' || nextDetail.item.freshnessState === 'expired' ? 'expiring' : 'in-stock';
         const previewList = await kitchenService.getInventoryItems(previewView);
         setPreviewNames(previewList.items.slice(0, 5).map((item) => item.name));
       } catch (caughtError) {
@@ -143,7 +149,7 @@ export default function KitchenItemScreen() {
       return 'in-stock';
     }
 
-    return detail.item.status === 'use_soon' || detail.item.status === 'expired' ? 'expiring' : 'in-stock';
+    return detail.item.freshnessState === 'use_soon' || detail.item.freshnessState === 'expired' ? 'expiring' : 'in-stock';
   }, [detail]);
 
   const parsedQuantityValue = Number(quantityValue);
@@ -185,7 +191,12 @@ export default function KitchenItemScreen() {
         unit: quantityUnit.trim() || null,
       },
       location,
-      status,
+      freshnessState,
+      reorderPoint: reorderPoint.trim() ? Number(reorderPoint) : null,
+      targetOnHand: targetOnHand.trim() ? Number(targetOnHand) : null,
+      dates: {
+        expiresAt: expiresAt.trim() ? new Date(`${expiresAt}T00:00:00.000Z`).toISOString() : null,
+      },
     });
     pushToast({
       title: 'Kitchen item updated',
@@ -312,7 +323,10 @@ export default function KitchenItemScreen() {
 
                 <InfoLine label="Expiry" value={dayDiff(detail.item.dates?.expiresAt)} valueTone="warning" />
                 <InfoLine label="Location" value={location[0].toUpperCase() + location.slice(1)} />
-                <InfoLine label="Status" value={status.replace('_', ' ')} />
+                <InfoLine label="Freshness" value={freshnessState.replace('_', ' ')} />
+                <TextField label="Expiry date (YYYY-MM-DD)" value={expiresAt} onChangeText={setExpiresAt} placeholder="2026-03-25" />
+                <TextField label="Reorder point" value={reorderPoint} onChangeText={setReorderPoint} placeholder="1" keyboardType="number-pad" />
+                <TextField label="Target on hand (optional)" value={targetOnHand} onChangeText={setTargetOnHand} placeholder="" keyboardType="number-pad" />
 
                 <YStack gap={8}>
                   <ActionButton onPress={save} disabled={!quantityIsValid}>
@@ -321,9 +335,9 @@ export default function KitchenItemScreen() {
                   <ActionButton
                     variant="success"
                     onPress={async () => {
-                      setStatus('fresh');
+                      setFreshnessState('fresh');
                       await kitchenService.patchInventoryItem(detail.item.id, {
-                        status: 'fresh',
+                        freshnessState: 'fresh',
                       });
                       pushToast({
                         title: 'Item refreshed',

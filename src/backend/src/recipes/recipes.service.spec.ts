@@ -793,6 +793,164 @@ describe('RecipesService', () => {
     expect(result.revision.latestOutput?.title).toBe('Garlic Turkey Rice Bowl');
   });
 
+  it('excludes expired and out-of-stock inventory from recipe AI context with legacy status fallback', async () => {
+    const userId = new Types.ObjectId();
+    const generationId = new Types.ObjectId();
+    const revisionId = new Types.ObjectId();
+    const recipeModel = createBasicModelMock();
+    const recipeGenerationModel = createBasicModelMock();
+    const recipeGenerationRevisionModel = createBasicModelMock();
+    const recipeHistoryEventModel = createBasicModelMock();
+    const weeklyPlanModel = createBasicModelMock();
+    const inventoryEventModel = createBasicModelMock();
+    const inventoryItemModel = createBasicModelMock();
+    const preferenceModel = createBasicModelMock();
+    const recipeAiService = createRecipeAiServiceMock();
+    const usersService = {
+      ensureUser: jest.fn().mockResolvedValue({ _id: userId }),
+    };
+    const generatedDraft = {
+      title: 'Stir Fry',
+      summary: 'Quick dinner',
+      metadata: {
+        readyInMinutes: 25,
+        calories: 550,
+        highlight: 'Weeknight',
+      },
+      ingredients: [
+        {
+          id: new Types.ObjectId(),
+          name: 'Rice',
+          quantity: '200 g',
+          measurement: { value: 200, unit: 'g' as const },
+        },
+      ],
+      steps: [{ id: new Types.ObjectId(), order: 1, text: 'Cook.' }],
+      tags: ['Dinner'],
+    };
+
+    recipeGenerationModel.findOne.mockResolvedValue({
+      _id: generationId,
+      userId,
+      weeklyPlanId: null,
+      status: 'active',
+      latestRevisionId: revisionId,
+      acceptedRecipeId: null,
+      contextSnapshot: {},
+      save: jest.fn().mockResolvedValue(undefined),
+    });
+    recipeGenerationRevisionModel.findOne.mockReturnValue({
+      sort: jest.fn().mockResolvedValue({
+        _id: revisionId,
+        generationId,
+        userId,
+        revisionNumber: 1,
+        chat: [
+          {
+            _id: new Types.ObjectId(),
+            role: 'assistant',
+            content: 'What would you like to eat?',
+            timestamp: new Date('2026-03-13T00:00:00.000Z'),
+          },
+        ],
+        latestOutput: null,
+      }),
+    });
+    preferenceModel.findOne.mockResolvedValue(null);
+    recipeHistoryEventModel.find.mockReturnValue({
+      sort: jest.fn().mockResolvedValue([]),
+    });
+    inventoryItemModel.find.mockResolvedValue([
+      {
+        name: 'Carrot',
+        quantity: { value: 2, unit: 'piece' },
+        freshnessState: 'fresh',
+        replenishmentState: 'in_stock',
+        location: 'fridge',
+      },
+      {
+        name: 'Cucumber',
+        quantity: { value: 1, unit: 'piece' },
+        status: 'low_stock',
+        location: 'fridge',
+      },
+      {
+        name: 'Milk',
+        quantity: { value: 1, unit: 'l' },
+        freshnessState: 'expired',
+        replenishmentState: 'in_stock',
+        location: 'fridge',
+      },
+      {
+        name: 'Yogurt',
+        quantity: { value: 1, unit: 'piece' },
+        status: 'expired',
+        location: 'fridge',
+      },
+      {
+        name: 'Rice',
+        quantity: { value: 0, unit: 'g' },
+        freshnessState: 'fresh',
+        replenishmentState: 'in_stock',
+        location: 'pantry',
+      },
+      {
+        name: 'Chicken',
+        quantity: { value: 1, unit: 'kg' },
+        freshnessState: 'fresh',
+        replenishmentState: 'out_of_stock',
+        location: 'fridge',
+      },
+    ]);
+    recipeAiService.generateDraft.mockResolvedValue(generatedDraft);
+    recipeGenerationRevisionModel.create.mockResolvedValue({
+      _id: new Types.ObjectId(),
+      generationId,
+      userId,
+      revisionNumber: 2,
+      chat: [],
+      latestOutput: generatedDraft,
+      createdAt: new Date('2026-03-13T00:00:00.000Z'),
+      updatedAt: new Date('2026-03-13T00:00:00.000Z'),
+    });
+
+    const service = new RecipesService(
+      recipeModel as never,
+      recipeGenerationModel as never,
+      recipeGenerationRevisionModel as never,
+      recipeHistoryEventModel as never,
+      weeklyPlanModel as never,
+      inventoryEventModel as never,
+      inventoryItemModel as never,
+      preferenceModel as never,
+      usersService as never,
+      recipeAiService as never,
+    );
+
+    await service.createGenerationRevision(
+      authUser,
+      generationId.toString(),
+      'Make me dinner',
+    );
+
+    expect(recipeAiService.generateDraft).toHaveBeenCalledWith(
+      expect.objectContaining({
+        inventoryItems: [
+          expect.objectContaining({
+            name: 'Carrot',
+            quantity: { value: 2, unit: 'piece' },
+            status: 'fresh',
+          }),
+          expect.objectContaining({
+            name: 'Cucumber',
+            quantity: { value: 1, unit: 'piece' },
+            status: 'unknown',
+          }),
+        ],
+      }),
+    );
+  });
+
   it('matches canonical aliases by canonicalKey when cooking recipes', async () => {
     const userId = new Types.ObjectId();
     const recipe = {

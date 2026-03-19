@@ -800,7 +800,10 @@ export interface InventoryItemRecord {
   category?: string;
   location: 'fridge' | 'pantry' | 'freezer' | 'unknown';
   quantity?: QuantityValue;
-  status: 'fresh' | 'use_soon' | 'expired' | 'low_stock' | 'unknown';
+  replenishmentState: 'in_stock' | 'low_stock' | 'out_of_stock';
+  freshnessState: 'fresh' | 'use_soon' | 'expired' | 'unknown';
+  reorderPoint?: number | null;
+  targetOnHand?: number | null;
   dates?: InventoryDatesValue;
   freshness?: InventoryFreshnessValue;
   source?: 'manual' | 'ocr' | 'recipe' | 'adjustment' | 'kitchen_hub';
@@ -824,12 +827,20 @@ export const InventoryItemSchema = new Schema<InventoryItemRecord>(
       default: 'pantry',
     },
     quantity: { type: quantitySchema, default: { value: null, unit: null } },
-    status: {
+    replenishmentState: {
       type: String,
-      enum: ['fresh', 'use_soon', 'expired', 'low_stock', 'unknown'],
+      enum: ['in_stock', 'low_stock', 'out_of_stock'],
       required: true,
-      default: 'fresh',
+      default: 'in_stock',
     },
+    freshnessState: {
+      type: String,
+      enum: ['fresh', 'use_soon', 'expired', 'unknown'],
+      required: true,
+      default: 'unknown',
+    },
+    reorderPoint: { type: Number, default: null },
+    targetOnHand: { type: Number, default: null },
     dates: { type: inventoryDatesSchema, default: {} },
     freshness: { type: inventoryFreshnessSchema, default: {} },
     source: {
@@ -846,7 +857,8 @@ export const InventoryItemSchema = new Schema<InventoryItemRecord>(
   },
 );
 InventoryItemSchema.index({ userId: 1, name: 1 });
-InventoryItemSchema.index({ userId: 1, status: 1 });
+InventoryItemSchema.index({ userId: 1, replenishmentState: 1 });
+InventoryItemSchema.index({ userId: 1, freshnessState: 1 });
 
 export const INVENTORY_EVENT_MODEL = 'InventoryEvent';
 export interface InventoryEventRecord {

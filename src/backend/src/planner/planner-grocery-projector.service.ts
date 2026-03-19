@@ -39,11 +39,11 @@ export class PlannerGroceryProjector {
         _id: { $in: selectedRecipeIds },
         userId,
       }),
-      this.inventoryItemModel.find({
-        userId,
-        status: { $ne: 'expired' },
-      }),
+      this.inventoryItemModel.find({ userId }),
     ]);
+    const eligibleInventoryItems = inventoryItems.filter((item) =>
+      this.isUsableInventoryForProjection(item),
+    );
     const aggregates = new Map<
       string,
       {
@@ -86,7 +86,7 @@ export class PlannerGroceryProjector {
           entry.name,
           entry.canonicalKey,
           entry.quantity,
-          inventoryItems,
+          eligibleInventoryItems,
         ),
       }))
       .filter((entry) => entry.quantity.value > 0)
@@ -134,6 +134,58 @@ export class PlannerGroceryProjector {
     groceryList.status = 'active';
     groceryList.lastComputedAt = new Date();
     await groceryList.save();
+  }
+
+  private getLegacyStatus(item: InventoryItemRecord) {
+    const legacyStatus = (item as unknown as { status?: unknown }).status;
+
+    if (
+      legacyStatus === 'fresh' ||
+      legacyStatus === 'use_soon' ||
+      legacyStatus === 'expired' ||
+      legacyStatus === 'low_stock'
+    ) {
+      return legacyStatus;
+    }
+
+    return null;
+  }
+
+  private getFreshnessStateWithFallback(item: InventoryItemRecord) {
+    if (item.freshnessState) {
+      return item.freshnessState;
+    }
+
+    const legacyStatus = this.getLegacyStatus(item);
+    if (
+      legacyStatus === 'fresh' ||
+      legacyStatus === 'use_soon' ||
+      legacyStatus === 'expired'
+    ) {
+      return legacyStatus;
+    }
+
+    return 'unknown' as const;
+  }
+
+  private getReplenishmentStateWithFallback(item: InventoryItemRecord) {
+    if (item.replenishmentState) {
+      return item.replenishmentState;
+    }
+
+    const legacyStatus = this.getLegacyStatus(item);
+    if (legacyStatus === 'low_stock') {
+      return 'low_stock' as const;
+    }
+
+    return 'in_stock' as const;
+  }
+
+  private isUsableInventoryForProjection(item: InventoryItemRecord) {
+    return (
+      this.getFreshnessStateWithFallback(item) !== 'expired' &&
+      this.getReplenishmentStateWithFallback(item) !== 'out_of_stock'
+    );
   }
 
   private mergeWithPreservedItems(
