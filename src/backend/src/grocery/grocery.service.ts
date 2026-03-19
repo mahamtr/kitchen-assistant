@@ -66,9 +66,12 @@ export class GroceryService {
   async moveLowStockToBuy(authUser: AuthenticatedUser) {
     const user = await this.usersService.ensureUser(authUser);
     const groceryList = await this.requireCurrentList(authUser);
-    const lowStockItems = await this.inventoryItemModel.find({
+    const inventoryItems = await this.inventoryItemModel.find({
       userId: user._id,
-      replenishmentState: { $in: ['low_stock', 'out_of_stock'] },
+    });
+    const lowStockItems = inventoryItems.filter((item) => {
+      const replenishmentState = this.resolveReplenishmentState(item);
+      return replenishmentState === 'low_stock' || replenishmentState === 'out_of_stock';
     });
 
     this.upsertItemsIntoList(groceryList, lowStockItems, 'low_stock');
@@ -80,9 +83,12 @@ export class GroceryService {
   async moveUrgentToBuy(authUser: AuthenticatedUser) {
     const user = await this.usersService.ensureUser(authUser);
     const groceryList = await this.requireCurrentList(authUser);
-    const urgentItems = await this.inventoryItemModel.find({
+    const inventoryItems = await this.inventoryItemModel.find({
       userId: user._id,
-      freshnessState: { $in: ['use_soon', 'expired'] },
+    });
+    const urgentItems = inventoryItems.filter((item) => {
+      const freshnessState = this.resolveFreshnessState(item);
+      return freshnessState === 'use_soon' || freshnessState === 'expired';
     });
 
     this.upsertItemsIntoList(groceryList, urgentItems, 'urgent_expiring');
@@ -323,6 +329,77 @@ export class GroceryService {
             : 'Urgent item added from Kitchen inventory',
       });
     }
+  }
+
+  private resolveReplenishmentState(
+    item: InventoryItemRecord,
+  ): 'in_stock' | 'low_stock' | 'out_of_stock' {
+    if (
+      item.replenishmentState === 'in_stock' ||
+      item.replenishmentState === 'low_stock' ||
+      item.replenishmentState === 'out_of_stock'
+    ) {
+      return item.replenishmentState;
+    }
+
+    if ((item as unknown as { status?: unknown }).status === 'low_stock') {
+      return 'low_stock';
+    }
+
+    const quantityValue = item.quantity?.value ?? 0;
+    const reorderPoint = item.reorderPoint ?? 1;
+
+    if (quantityValue <= 0) {
+      return 'out_of_stock';
+    }
+
+    if (quantityValue <= reorderPoint) {
+      return 'low_stock';
+    }
+
+    return 'in_stock';
+  }
+
+  private resolveFreshnessState(
+    item: InventoryItemRecord,
+  ): 'fresh' | 'use_soon' | 'expired' | 'unknown' {
+    if (
+      item.freshnessState === 'fresh' ||
+      item.freshnessState === 'use_soon' ||
+      item.freshnessState === 'expired' ||
+      item.freshnessState === 'unknown'
+    ) {
+      return item.freshnessState;
+    }
+
+    const legacyStatus = (item as unknown as { status?: unknown }).status;
+    if (
+      legacyStatus === 'fresh' ||
+      legacyStatus === 'use_soon' ||
+      legacyStatus === 'expired'
+    ) {
+      return legacyStatus;
+    }
+
+    const expiresAt = item.dates?.expiresAt;
+    if (!expiresAt) {
+      return 'unknown';
+    }
+
+    const today = new Date();
+    const nowDay = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    const expDay = new Date(expiresAt.getFullYear(), expiresAt.getMonth(), expiresAt.getDate());
+    const diff = Math.round((expDay.getTime() - nowDay.getTime()) / (1000 * 60 * 60 * 24));
+
+    if (diff < 0) {
+      return 'expired';
+    }
+
+    if (diff <= 2) {
+      return 'use_soon';
+    }
+
+    return 'fresh';
   }
 
   private toResponse(groceryList: GroceryListRecord) {

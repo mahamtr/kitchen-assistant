@@ -299,6 +299,55 @@ describe('InventoryService', () => {
     expect(inStockResult.replenishmentState).toBe('in_stock');
   });
 
+  it('supports legacy status-only inventory documents in list filters', async () => {
+    const userId = new Types.ObjectId();
+    const inventoryItemModel = createModelMock();
+    const inventoryEventModel = createModelMock();
+    const groceryListModel = createModelMock();
+    const weeklyPlanModel = createModelMock();
+    const usersService = {
+      ensureUser: jest.fn().mockResolvedValue({ _id: userId }),
+    };
+
+    const service = new InventoryService(
+      inventoryItemModel as never,
+      inventoryEventModel as never,
+      groceryListModel as never,
+      weeklyPlanModel as never,
+      usersService as never,
+      new DefaultDataFactory(),
+    );
+
+    inventoryItemModel.find.mockResolvedValue([
+      {
+        ...createInventoryItem(userId),
+        name: 'Low Stock Legacy',
+        replenishmentState: undefined,
+        freshnessState: undefined,
+        status: 'low_stock',
+      },
+      {
+        ...createInventoryItem(userId),
+        name: 'Expired Legacy',
+        replenishmentState: undefined,
+        freshnessState: undefined,
+        status: 'expired',
+      },
+      {
+        ...createInventoryItem(userId),
+        name: 'Fresh Split',
+        replenishmentState: 'in_stock',
+        freshnessState: 'fresh',
+      },
+    ]);
+
+    const inStock = await service.getItems(authUser as never, 'in-stock');
+    const expiring = await service.getItems(authUser as never, 'expiring');
+
+    expect(inStock.items.map((item) => item.name)).toContain('Low Stock Legacy');
+    expect(expiring.items.map((item) => item.name)).toContain('Expired Legacy');
+  });
+
   it('merges OCR receipt lines by canonical key across ingredient aliases', async () => {
     const userId = new Types.ObjectId();
     const inventoryItemModel = createModelMock();

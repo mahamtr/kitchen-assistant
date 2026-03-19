@@ -51,6 +51,8 @@ type InventoryPatch = Partial<
   >
 >;
 
+type LegacyInventoryStatus = 'fresh' | 'use_soon' | 'expired' | 'low_stock';
+
 @Injectable()
 export class InventoryService {
   constructor(
@@ -74,7 +76,10 @@ export class InventoryService {
     ]);
 
     const urgentItems = inventoryItems
-      .filter((item) => item.freshnessState === 'use_soon' || item.freshnessState === 'expired')
+      .filter((item) => {
+        const freshnessState = this.resolveFreshnessState(item);
+        return freshnessState === 'use_soon' || freshnessState === 'expired';
+      })
       .sort((left, right) => {
         const leftValue =
           left.dates?.expiresAt?.getTime() ?? Number.MAX_SAFE_INTEGER;
@@ -89,12 +94,14 @@ export class InventoryService {
         groceryList?.items.filter((item) => item.status === 'to_buy').length ??
         0,
       inStockCount: inventoryItems.length,
-      expiringCount: inventoryItems.filter((item) =>
-        ['use_soon', 'expired'].includes(item.freshnessState),
-      ).length,
-      lowStockCount: inventoryItems.filter(
-        (item) => item.replenishmentState === 'low_stock' || item.replenishmentState === 'out_of_stock',
-      ).length,
+      expiringCount: inventoryItems.filter((item) => {
+        const freshnessState = this.resolveFreshnessState(item);
+        return ['use_soon', 'expired'].includes(freshnessState);
+      }).length,
+      lowStockCount: inventoryItems.filter((item) => {
+        const replenishmentState = this.resolveReplenishmentState(item);
+        return replenishmentState === 'low_stock' || replenishmentState === 'out_of_stock';
+      }).length,
       urgentItems: urgentItems.map((item) => ({
         inventoryItemId: item._id.toString(),
         name: item.name,
@@ -113,11 +120,15 @@ export class InventoryService {
     const items = await this.inventoryItemModel.find({ userId: user._id });
 
     const filtered = items
-      .filter((item) =>
-        view === 'in-stock'
-          ? ['in_stock', 'low_stock'].includes(item.replenishmentState)
-          : ['use_soon', 'expired'].includes(item.freshnessState),
-      )
+      .filter((item) => {
+        if (view === 'in-stock') {
+          const replenishmentState = this.resolveReplenishmentState(item);
+          return ['in_stock', 'low_stock'].includes(replenishmentState);
+        }
+
+        const freshnessState = this.resolveFreshnessState(item);
+        return ['use_soon', 'expired'].includes(freshnessState);
+      })
       .filter((item) =>
         normalizedSearch
           ? item.name.toLowerCase().includes(normalizedSearch)
@@ -767,6 +778,64 @@ export class InventoryService {
     };
   }
 
+  private getLegacyStatus(item: InventoryItemRecord): LegacyInventoryStatus | null {
+    const legacyValue = (item as unknown as { status?: unknown }).status;
+
+    if (
+      legacyValue === 'fresh' ||
+      legacyValue === 'use_soon' ||
+      legacyValue === 'expired' ||
+      legacyValue === 'low_stock'
+    ) {
+      return legacyValue;
+    }
+
+    return null;
+  }
+
+  private resolveReplenishmentState(
+    item: InventoryItemRecord,
+  ): 'in_stock' | 'low_stock' | 'out_of_stock' {
+    if (
+      item.replenishmentState === 'in_stock' ||
+      item.replenishmentState === 'low_stock' ||
+      item.replenishmentState === 'out_of_stock'
+    ) {
+      return item.replenishmentState;
+    }
+
+    const legacyStatus = this.getLegacyStatus(item);
+    if (legacyStatus === 'low_stock') {
+      return 'low_stock';
+    }
+
+    return this.deriveReplenishmentState(item);
+  }
+
+  private resolveFreshnessState(
+    item: InventoryItemRecord,
+  ): 'fresh' | 'use_soon' | 'expired' | 'unknown' {
+    if (
+      item.freshnessState === 'fresh' ||
+      item.freshnessState === 'use_soon' ||
+      item.freshnessState === 'expired' ||
+      item.freshnessState === 'unknown'
+    ) {
+      return item.freshnessState;
+    }
+
+    const legacyStatus = this.getLegacyStatus(item);
+    if (
+      legacyStatus === 'fresh' ||
+      legacyStatus === 'use_soon' ||
+      legacyStatus === 'expired'
+    ) {
+      return legacyStatus;
+    }
+
+    return this.deriveFreshnessState(item);
+  }
+
   private deriveReplenishmentState(item: InventoryItemRecord) {
     const quantityValue = item.quantity?.value ?? 0;
     const reorderPoint = item.reorderPoint ?? 1;
@@ -814,8 +883,8 @@ export class InventoryService {
       category: item.category,
       location: item.location,
       quantity: item.quantity ?? { value: null, unit: null },
-      replenishmentState: item.replenishmentState,
-      freshnessState: item.freshnessState,
+      replenishmentState: this.resolveReplenishmentState(item),
+      freshnessState: this.resolveFreshnessState(item),
       reorderPoint: item.reorderPoint ?? null,
       targetOnHand: item.targetOnHand ?? null,
       dates: {
