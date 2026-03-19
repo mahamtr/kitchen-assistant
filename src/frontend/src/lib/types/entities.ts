@@ -40,7 +40,8 @@ export type RecipeHistoryEventType =
   | 'rated';
 export type RecipeHistorySource = 'recipes' | 'planner' | 'home' | 'ai_chat';
 export type InventoryLocation = 'fridge' | 'pantry' | 'freezer' | 'unknown';
-export type InventoryStatus = 'fresh' | 'use_soon' | 'expired' | 'low_stock' | 'unknown';
+export type InventoryReplenishmentState = 'in_stock' | 'low_stock' | 'out_of_stock';
+export type InventoryFreshnessState = 'fresh' | 'use_soon' | 'expired' | 'unknown';
 export type InventoryConfidence = 'low' | 'medium' | 'high';
 export type InventorySource = 'manual' | 'ocr' | 'recipe' | 'adjustment' | 'kitchen_hub';
 export type InventoryEventType = 'ADD' | 'USE' | 'DISCARD' | 'ADJUST' | 'MEMORY';
@@ -345,7 +346,10 @@ export interface InventoryItem {
   category?: string;
   location: InventoryLocation;
   quantity?: InventoryQuantity;
-  status: InventoryStatus;
+  replenishmentState: InventoryReplenishmentState;
+  freshnessState: InventoryFreshnessState;
+  reorderPoint?: number | null;
+  targetOnHand?: number | null;
   dates?: InventoryDates;
   freshness?: InventoryFreshness;
   source?: InventorySource;

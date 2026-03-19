@@ -68,7 +68,7 @@ export class GroceryService {
     const groceryList = await this.requireCurrentList(authUser);
     const lowStockItems = await this.inventoryItemModel.find({
       userId: user._id,
-      status: 'low_stock',
+      replenishmentState: { $in: ['low_stock', 'out_of_stock'] },
     });
 
     this.upsertItemsIntoList(groceryList, lowStockItems, 'low_stock');
@@ -82,7 +82,7 @@ export class GroceryService {
     const groceryList = await this.requireCurrentList(authUser);
     const urgentItems = await this.inventoryItemModel.find({
       userId: user._id,
-      status: { $in: ['use_soon', 'expired'] },
+      freshnessState: { $in: ['use_soon', 'expired'] },
     });
 
     this.upsertItemsIntoList(groceryList, urgentItems, 'urgent_expiring');
@@ -156,8 +156,9 @@ export class GroceryService {
           existingInventoryItem.quantity,
           item.quantity,
         );
-        existingInventoryItem.status = 'fresh';
         existingInventoryItem.source = 'kitchen_hub';
+        existingInventoryItem.replenishmentState = 'in_stock';
+        existingInventoryItem.freshnessState = existingInventoryItem.freshnessState ?? 'unknown';
         existingInventoryItem.lastEventId = event._id;
         await existingInventoryItem.save(session ? { session } : undefined);
         continue;
@@ -175,7 +176,10 @@ export class GroceryService {
               value: item.quantity.value,
               unit: item.quantity.unit,
             },
-            status: 'fresh',
+            replenishmentState: 'in_stock',
+            freshnessState: 'unknown',
+            reorderPoint: 1,
+            targetOnHand: null,
             dates: {
               addedAt: new Date(),
               openedAt: null,

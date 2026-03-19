@@ -1013,7 +1013,12 @@ export class DefaultDataFactory {
     userId: Types.ObjectId,
     name: string,
     location: InventoryItemRecord['location'],
-    status: InventoryItemRecord['status'],
+    status:
+      | 'fresh'
+      | 'use_soon'
+      | 'expired'
+      | 'low_stock'
+      | 'unknown',
     value: number,
     unit: string,
     expiresAt: Date | null,
@@ -1029,7 +1034,10 @@ export class DefaultDataFactory {
       category: '',
       location,
       quantity: normalizeMeasurementValue(value, unit),
-      status,
+      replenishmentState: status === 'low_stock' ? 'low_stock' : value <= 0 ? 'out_of_stock' : 'in_stock',
+      freshnessState: status === 'low_stock' ? 'fresh' : status,
+      reorderPoint: status === 'low_stock' ? 2 : 1,
+      targetOnHand: null,
       dates: {
         addedAt: new Date(),
         openedAt: null,

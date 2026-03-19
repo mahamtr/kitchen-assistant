@@ -41,7 +41,8 @@ export class PlannerGroceryProjector {
       }),
       this.inventoryItemModel.find({
         userId,
-        status: { $ne: 'expired' },
+        freshnessState: { $ne: 'expired' },
+        replenishmentState: { $ne: 'out_of_stock' },
       }),
     ]);
     const aggregates = new Map<

@@ -51,7 +51,7 @@ function dayDiff(dateString?: string | null) {
 }
 
 function inventoryHint(item: InventoryItem) {
-  if (item.status === 'low_stock') {
+  if (item.replenishmentState === 'low_stock' || item.replenishmentState === 'out_of_stock') {
     return { text: 'low', color: palette.danger };
   }
 
@@ -59,8 +59,18 @@ function inventoryHint(item: InventoryItem) {
 
   if (daysLeft == null) {
     return {
-      text: item.status === 'expired' ? 'expired' : item.status === 'use_soon' ? 'soon' : 'fresh',
-      color: item.status === 'expired' ? palette.danger : item.status === 'use_soon' ? palette.warning : palette.success,
+      text:
+        item.freshnessState === 'expired'
+          ? 'expired'
+          : item.freshnessState === 'use_soon'
+            ? 'soon'
+            : item.freshnessState,
+      color:
+        item.freshnessState === 'expired'
+          ? palette.danger
+          : item.freshnessState === 'use_soon'
+            ? palette.warning
+            : palette.success,
     };
   }
 

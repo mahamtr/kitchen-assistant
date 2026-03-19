@@ -45,7 +45,8 @@ describe('KitchenItemScreen', () => {
         category: 'Dairy',
         location: 'fridge',
         quantity: { value: 1500, unit: 'g' },
-        status: 'fresh',
+        freshnessState: 'fresh',
+        replenishmentState: 'in_stock',
         source: 'manual',
         createdAt: '2026-03-10T00:00:00.000Z',
         lastUpdatedAt: '2026-03-10T00:00:00.000Z',
@@ -62,7 +63,8 @@ describe('KitchenItemScreen', () => {
           category: 'Dairy',
           location: 'fridge',
           quantity: { value: 1500, unit: 'g' },
-          status: 'fresh',
+          freshnessState: 'fresh',
+          replenishmentState: 'in_stock',
           source: 'manual',
           createdAt: '2026-03-10T00:00:00.000Z',
           lastUpdatedAt: '2026-03-10T00:00:00.000Z',
@@ -100,7 +102,12 @@ describe('KitchenItemScreen', () => {
           unit: 'kg',
           value: 1.5,
         },
-        status: 'fresh',
+        freshnessState: 'fresh',
+        reorderPoint: 1,
+        targetOnHand: null,
+        dates: {
+          expiresAt: null,
+        },
       });
     });
 

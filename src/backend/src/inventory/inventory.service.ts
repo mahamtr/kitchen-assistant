@@ -41,7 +41,10 @@ type InventoryPatch = Partial<
     | 'category'
     | 'location'
     | 'quantity'
-    | 'status'
+    | 'freshnessState'
+    | 'replenishmentState'
+    | 'reorderPoint'
+    | 'targetOnHand'
     | 'dates'
     | 'freshness'
     | 'metadata'
@@ -71,7 +74,7 @@ export class InventoryService {
     ]);
 
     const urgentItems = inventoryItems
-      .filter((item) => item.status === 'use_soon' || item.status === 'expired')
+      .filter((item) => item.freshnessState === 'use_soon' || item.freshnessState === 'expired')
       .sort((left, right) => {
         const leftValue =
           left.dates?.expiresAt?.getTime() ?? Number.MAX_SAFE_INTEGER;
@@ -87,10 +90,10 @@ export class InventoryService {
         0,
       inStockCount: inventoryItems.length,
       expiringCount: inventoryItems.filter((item) =>
-        ['use_soon', 'expired'].includes(item.status),
+        ['use_soon', 'expired'].includes(item.freshnessState),
       ).length,
       lowStockCount: inventoryItems.filter(
-        (item) => item.status === 'low_stock',
+        (item) => item.replenishmentState === 'low_stock' || item.replenishmentState === 'out_of_stock',
       ).length,
       urgentItems: urgentItems.map((item) => ({
         inventoryItemId: item._id.toString(),
@@ -112,8 +115,8 @@ export class InventoryService {
     const filtered = items
       .filter((item) =>
         view === 'in-stock'
-          ? ['fresh', 'low_stock'].includes(item.status)
-          : ['use_soon', 'expired'].includes(item.status),
+          ? ['in_stock', 'low_stock'].includes(item.replenishmentState)
+          : ['use_soon', 'expired'].includes(item.freshnessState),
       )
       .filter((item) =>
         normalizedSearch
@@ -205,6 +208,9 @@ export class InventoryService {
       item.normalizedName = canonical.normalizedName;
       item.canonicalKey = canonical.canonicalKey;
     }
+
+    item.replenishmentState = this.deriveReplenishmentState(item);
+    item.freshnessState = this.deriveFreshnessState(item);
     await item.save();
 
     return this.toInventoryItem(item);
@@ -253,7 +259,10 @@ export class InventoryService {
       'category',
       'location',
       'quantity',
-      'status',
+      'freshnessState',
+      'replenishmentState',
+      'reorderPoint',
+      'targetOnHand',
       'dates',
       'freshness',
       'metadata',
@@ -294,17 +303,41 @@ export class InventoryService {
       nextPatch.location = patch.location;
     }
 
-    if ('status' in patch) {
+    if ('freshnessState' in patch) {
       if (
-        patch.status !== 'fresh' &&
-        patch.status !== 'use_soon' &&
-        patch.status !== 'expired' &&
-        patch.status !== 'low_stock' &&
-        patch.status !== 'unknown'
+        patch.freshnessState !== 'fresh' &&
+        patch.freshnessState !== 'use_soon' &&
+        patch.freshnessState !== 'expired' &&
+        patch.freshnessState !== 'unknown'
       ) {
-        throw new BadRequestException('Invalid inventory status.');
+        throw new BadRequestException('Invalid inventory freshnessState.');
       }
-      nextPatch.status = patch.status;
+      nextPatch.freshnessState = patch.freshnessState;
+    }
+
+    if ('replenishmentState' in patch) {
+      if (
+        patch.replenishmentState !== 'in_stock' &&
+        patch.replenishmentState !== 'low_stock' &&
+        patch.replenishmentState !== 'out_of_stock'
+      ) {
+        throw new BadRequestException('Invalid inventory replenishmentState.');
+      }
+      nextPatch.replenishmentState = patch.replenishmentState;
+    }
+
+    if ('reorderPoint' in patch) {
+      if (patch.reorderPoint !== null && typeof patch.reorderPoint !== 'number') {
+        throw new BadRequestException('Inventory reorderPoint must be a number or null.');
+      }
+      nextPatch.reorderPoint = patch.reorderPoint as number | null;
+    }
+
+    if ('targetOnHand' in patch) {
+      if (patch.targetOnHand !== null && typeof patch.targetOnHand !== 'number') {
+        throw new BadRequestException('Inventory targetOnHand must be a number or null.');
+      }
+      nextPatch.targetOnHand = patch.targetOnHand as number | null;
     }
 
     if ('quantity' in patch) {
@@ -632,8 +665,9 @@ export class InventoryService {
             unit: line.quantityUnit,
           },
         );
-        existing.status = 'fresh';
         existing.source = 'ocr';
+        existing.freshnessState = this.deriveFreshnessState(existing);
+        existing.replenishmentState = this.deriveReplenishmentState(existing);
         existing.lastEventId = event._id;
         await existing.save();
         updatedItems.push(existing);
@@ -650,7 +684,10 @@ export class InventoryService {
           value: line.quantityValue,
           unit: line.quantityUnit,
         },
-        status: 'fresh',
+        replenishmentState: 'in_stock',
+        freshnessState: 'unknown',
+        reorderPoint: 1,
+        targetOnHand: null,
         dates: {
           addedAt: new Date(),
           openedAt: null,
@@ -726,6 +763,43 @@ export class InventoryService {
     };
   }
 
+  private deriveReplenishmentState(item: InventoryItemRecord) {
+    const quantityValue = item.quantity?.value ?? 0;
+    const reorderPoint = item.reorderPoint ?? 1;
+
+    if (quantityValue <= 0) {
+      return 'out_of_stock' as const;
+    }
+
+    if (quantityValue <= reorderPoint) {
+      return 'low_stock' as const;
+    }
+
+    return 'in_stock' as const;
+  }
+
+  private deriveFreshnessState(item: InventoryItemRecord) {
+    const expiresAt = item.dates?.expiresAt;
+    if (!expiresAt) {
+      return 'unknown' as const;
+    }
+
+    const today = new Date();
+    const nowDay = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    const expDay = new Date(expiresAt.getFullYear(), expiresAt.getMonth(), expiresAt.getDate());
+    const diff = Math.round((expDay.getTime() - nowDay.getTime()) / (1000 * 60 * 60 * 24));
+
+    if (diff < 0) {
+      return 'expired' as const;
+    }
+
+    if (diff <= 2) {
+      return 'use_soon' as const;
+    }
+
+    return 'fresh' as const;
+  }
+
   private toInventoryItem(item: InventoryItemRecord) {
     return {
       id: item._id.toString(),
@@ -736,7 +810,10 @@ export class InventoryService {
       category: item.category,
       location: item.location,
       quantity: item.quantity ?? { value: null, unit: null },
-      status: item.status,
+      replenishmentState: item.replenishmentState,
+      freshnessState: item.freshnessState,
+      reorderPoint: item.reorderPoint ?? null,
+      targetOnHand: item.targetOnHand ?? null,
       dates: {
         addedAt: item.dates?.addedAt?.toISOString(),
         openedAt: item.dates?.openedAt?.toISOString() ?? null,

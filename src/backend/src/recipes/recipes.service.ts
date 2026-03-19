@@ -896,7 +896,8 @@ export class RecipesService {
       inventoryItems: inventoryItems
         .filter(
           (item) =>
-            item.status !== 'expired' &&
+            item.freshnessState !== 'expired' &&
+            item.replenishmentState !== 'out_of_stock' &&
             item.quantity?.value != null &&
             item.quantity.unit != null &&
             item.quantity.value > 0,
@@ -979,7 +980,7 @@ export class RecipesService {
             })
           : 'Unknown quantity',
       location: item.location,
-      status: item.status,
+      status: item.freshnessState,
     };
   }
 

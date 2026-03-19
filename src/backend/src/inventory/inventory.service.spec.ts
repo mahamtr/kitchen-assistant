@@ -27,7 +27,10 @@ describe('InventoryService', () => {
       category: '',
       location: 'fridge',
       quantity: { value: 500, unit: 'g' },
-      status: 'fresh',
+      replenishmentState: 'in_stock',
+      freshnessState: 'fresh',
+      reorderPoint: 1,
+      targetOnHand: null,
       dates: {
         addedAt: new Date('2026-03-01T00:00:00.000Z'),
         openedAt: null,

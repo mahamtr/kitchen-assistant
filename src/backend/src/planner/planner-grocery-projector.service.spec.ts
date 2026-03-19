@@ -214,7 +214,8 @@ describe('PlannerGroceryProjector', () => {
             value: 3,
             unit: 'piece',
           },
-          status: 'fresh',
+          replenishmentState: 'in_stock',
+          freshnessState: 'fresh',
         },
       ]),
     };
