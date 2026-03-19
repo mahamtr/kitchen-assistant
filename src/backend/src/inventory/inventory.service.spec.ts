@@ -158,6 +158,147 @@ describe('InventoryService', () => {
     expect(item.save).not.toHaveBeenCalled();
   });
 
+  it('preserves explicit split-state patch values when provided', async () => {
+    const userId = new Types.ObjectId();
+    const inventoryItemModel = createModelMock();
+    const inventoryEventModel = createModelMock();
+    const groceryListModel = createModelMock();
+    const weeklyPlanModel = createModelMock();
+    const usersService = {
+      ensureUser: jest.fn().mockResolvedValue({ _id: userId }),
+    };
+    const item = createInventoryItem(userId);
+    item.dates = {
+      ...item.dates,
+      expiresAt: null,
+    };
+
+    inventoryItemModel.findOne.mockResolvedValue(item);
+
+    const service = new InventoryService(
+      inventoryItemModel as never,
+      inventoryEventModel as never,
+      groceryListModel as never,
+      weeklyPlanModel as never,
+      usersService as never,
+      new DefaultDataFactory(),
+    );
+
+    const result = await service.patchItem(authUser as never, item._id.toString(), {
+      freshnessState: 'fresh',
+      replenishmentState: 'out_of_stock',
+    });
+
+    expect(item.save).toHaveBeenCalled();
+    expect(result.freshnessState).toBe('fresh');
+    expect(result.replenishmentState).toBe('out_of_stock');
+  });
+
+  it('derives freshness transitions from expiresAt when freshnessState is omitted', async () => {
+    const userId = new Types.ObjectId();
+    const inventoryItemModel = createModelMock();
+    const inventoryEventModel = createModelMock();
+    const groceryListModel = createModelMock();
+    const weeklyPlanModel = createModelMock();
+    const usersService = {
+      ensureUser: jest.fn().mockResolvedValue({ _id: userId }),
+    };
+
+    const service = new InventoryService(
+      inventoryItemModel as never,
+      inventoryEventModel as never,
+      groceryListModel as never,
+      weeklyPlanModel as never,
+      usersService as never,
+      new DefaultDataFactory(),
+    );
+
+    const unknownItem = createInventoryItem(userId);
+    unknownItem.dates = { ...unknownItem.dates, expiresAt: null };
+    inventoryItemModel.findOne.mockResolvedValueOnce(unknownItem);
+    const unknownResult = await service.patchItem(authUser as never, unknownItem._id.toString(), {
+      metadata: { note: 'keep' },
+    });
+    expect(unknownResult.freshnessState).toBe('unknown');
+
+    const useSoonItem = createInventoryItem(userId);
+    const soon = new Date();
+    soon.setDate(soon.getDate() + 1);
+    inventoryItemModel.findOne.mockResolvedValueOnce(useSoonItem);
+    const useSoonResult = await service.patchItem(authUser as never, useSoonItem._id.toString(), {
+      dates: { expiresAt: soon.toISOString() },
+    });
+    expect(useSoonResult.freshnessState).toBe('use_soon');
+
+    const expiredItem = createInventoryItem(userId);
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    inventoryItemModel.findOne.mockResolvedValueOnce(expiredItem);
+    const expiredResult = await service.patchItem(authUser as never, expiredItem._id.toString(), {
+      dates: { expiresAt: yesterday.toISOString() },
+    });
+    expect(expiredResult.freshnessState).toBe('expired');
+
+    const freshItem = createInventoryItem(userId);
+    const later = new Date();
+    later.setDate(later.getDate() + 5);
+    inventoryItemModel.findOne.mockResolvedValueOnce(freshItem);
+    const freshResult = await service.patchItem(authUser as never, freshItem._id.toString(), {
+      dates: { expiresAt: later.toISOString() },
+    });
+    expect(freshResult.freshnessState).toBe('fresh');
+  });
+
+  it('derives replenishment transitions from quantity and reorderPoint when omitted', async () => {
+    const userId = new Types.ObjectId();
+    const inventoryItemModel = createModelMock();
+    const inventoryEventModel = createModelMock();
+    const groceryListModel = createModelMock();
+    const weeklyPlanModel = createModelMock();
+    const usersService = {
+      ensureUser: jest.fn().mockResolvedValue({ _id: userId }),
+    };
+
+    const service = new InventoryService(
+      inventoryItemModel as never,
+      inventoryEventModel as never,
+      groceryListModel as never,
+      weeklyPlanModel as never,
+      usersService as never,
+      new DefaultDataFactory(),
+    );
+
+    const outOfStockItem = createInventoryItem(userId);
+    outOfStockItem.quantity = { value: 5, unit: 'g' };
+    outOfStockItem.reorderPoint = 1;
+    inventoryItemModel.findOne.mockResolvedValueOnce(outOfStockItem);
+    const outResult = await service.patchItem(authUser as never, outOfStockItem._id.toString(), {
+      quantity: { value: 0, unit: 'g' },
+      reorderPoint: 1,
+    });
+    expect(outResult.replenishmentState).toBe('out_of_stock');
+
+    const lowStockItem = createInventoryItem(userId);
+    lowStockItem.quantity = { value: 5, unit: 'g' };
+    lowStockItem.reorderPoint = 2;
+    inventoryItemModel.findOne.mockResolvedValueOnce(lowStockItem);
+    const lowResult = await service.patchItem(authUser as never, lowStockItem._id.toString(), {
+      quantity: { value: 2, unit: 'g' },
+      reorderPoint: 2,
+    });
+    expect(lowResult.replenishmentState).toBe('low_stock');
+
+    const inStockItem = createInventoryItem(userId);
+    inStockItem.quantity = { value: 5, unit: 'g' };
+    inStockItem.reorderPoint = 2;
+    inventoryItemModel.findOne.mockResolvedValueOnce(inStockItem);
+    const inStockResult = await service.patchItem(authUser as never, inStockItem._id.toString(), {
+      quantity: { value: 3, unit: 'g' },
+      reorderPoint: 2,
+    });
+    expect(inStockResult.replenishmentState).toBe('in_stock');
+  });
+
   it('merges OCR receipt lines by canonical key across ingredient aliases', async () => {
     const userId = new Types.ObjectId();
     const inventoryItemModel = createModelMock();

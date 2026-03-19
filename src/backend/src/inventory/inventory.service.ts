@@ -209,8 +209,12 @@ export class InventoryService {
       item.canonicalKey = canonical.canonicalKey;
     }
 
-    item.replenishmentState = this.deriveReplenishmentState(item);
-    item.freshnessState = this.deriveFreshnessState(item);
+    if (!('replenishmentState' in nextPatch)) {
+      item.replenishmentState = this.deriveReplenishmentState(item);
+    }
+    if (!('freshnessState' in nextPatch)) {
+      item.freshnessState = this.deriveFreshnessState(item);
+    }
     await item.save();
 
     return this.toInventoryItem(item);
