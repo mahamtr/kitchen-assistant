@@ -54,7 +54,7 @@ This approach eliminates hidden coupling now rather than carrying temporary dual
 3. Update inventory patch validation to reject mixed-status writes and accept split-state writes.
 4. Refactor grocery actions to query `replenishmentState` for low-stock and `freshnessState` for urgent-expiring.
 5. Refactor planner grocery projection inventory-coverage logic to consume split fields.
-6. Update frontend contracts/types and kitchen screens to split-state-only rendering/editing.
+6. Update frontend contracts/types and kitchen screens to split-state-only rendering/editing, including expiry date and per-item low-threshold controls in Kitchen item edit.
 7. Update backend/frontend tests for split-state-only fixtures and expectations.
 8. Update docs to reflect split ownership and endpoint shapes.
 
@@ -69,7 +69,8 @@ This approach eliminates hidden coupling now rather than carrying temporary dual
    - test target: inventory service + KitchenHub screen tests.
 3. **Item edit flow contract**
    - UI does not send top-level mixed `status` anymore.
-   - backend rejects/ignores mixed-status patches and accepts split-state fields per policy.
+   - UI can edit expiry date (`dates.expiresAt`) and per-item thresholds (`reorderPoint`, optional `targetOnHand`).
+   - backend rejects mixed-status patches and accepts split-state fields + threshold/expiry updates per policy.
    - test target: `inventory.service.spec.ts`, `KitchenItemScreen.test.tsx`.
 4. **Move low stock to buy flow**
    - selection based on `replenishmentState=low_stock|out_of_stock`, not freshness.
@@ -100,6 +101,8 @@ This approach eliminates hidden coupling now rather than carrying temporary dual
 - `In Stock` depends on replenishment state and usable quantity rules, not freshness state.
 - `Expiring` depends on freshness state only.
 - Kitchen item edit should not expose manual `low_stock` entry.
+- Kitchen item edit should allow editing expiry date (`dates.expiresAt`) directly.
+- Kitchen item edit should allow editing per-item low-stock thresholds (e.g., `reorderPoint` and optionally `targetOnHand`).
 - Freshness visibility remains explicit in UI:
   - show expiry date and/or days-left text on inventory item cards/detail
   - show freshness badge derived from `freshnessState` (`fresh`, `use soon`, `expired`, `unknown`)
@@ -114,8 +117,8 @@ This approach eliminates hidden coupling now rather than carrying temporary dual
   - UI should naturally show both entries with different expiry indicators
 - Replenishment derivation ownership:
   - backend derives `replenishmentState` from `quantity` + thresholds
-  - thresholds stored in backend policy fields (global/category defaults first)
-  - per-item threshold overrides are optional and can be exposed in UI only if lightweight; otherwise keep UI read-only for this issue and land editing in follow-up
+  - thresholds stored in backend policy fields (global/category defaults + per-item override)
+  - per-item threshold override editing is in-scope for this issue via Kitchen item edit UI (at minimum `reorderPoint`, and `targetOnHand` when used by shortage logic)
 - Empty/loading/error behavior remains unchanged.
 - After save, list placement reflects recalculated split states.
 
