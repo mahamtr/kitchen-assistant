@@ -23,6 +23,7 @@ describe('InventoryService', () => {
       userId,
       name: 'Greek yogurt',
       normalizedName: 'greek yogurt',
+      canonicalKey: 'greek yogurt',
       category: '',
       location: 'fridge',
       quantity: { value: 500, unit: 'g' },
@@ -152,5 +153,75 @@ describe('InventoryService', () => {
       }),
     ).rejects.toThrow('Unsupported measurement unit: cup');
     expect(item.save).not.toHaveBeenCalled();
+  });
+
+  it('merges OCR receipt lines by canonical key across ingredient aliases', async () => {
+    const userId = new Types.ObjectId();
+    const inventoryItemModel = createModelMock();
+    const inventoryEventModel = createModelMock();
+    const groceryListModel = createModelMock();
+    const weeklyPlanModel = createModelMock();
+    const usersService = {
+      ensureUser: jest.fn().mockResolvedValue({ _id: userId }),
+    };
+    const item = createInventoryItem(userId);
+    item.name = 'Fresh spinach';
+    item.normalizedName = 'fresh spinach';
+    item.canonicalKey = 'spinach';
+    item.quantity = { value: 100, unit: 'g' };
+    item.source = 'manual';
+    const reviewEvent = {
+      _id: new Types.ObjectId(),
+      metadata: {
+        confidence: 0.97,
+        receiptLabel: 'Market receipt',
+        lines: [
+          {
+            id: new Types.ObjectId(),
+            rawText: 'SPINACH LEAVES',
+            name: 'Spinach leaves',
+            quantityValue: 200,
+            quantityUnit: 'g',
+            confidence: 0.97,
+            accepted: true,
+          },
+        ],
+      },
+    };
+    const createdEvent = {
+      _id: new Types.ObjectId(),
+    };
+
+    inventoryEventModel.findOne.mockReturnValue({
+      sort: jest.fn().mockResolvedValue(reviewEvent),
+    });
+    inventoryEventModel.create.mockResolvedValue(createdEvent);
+    inventoryItemModel.findOne.mockResolvedValue(item);
+
+    const service = new InventoryService(
+      inventoryItemModel as never,
+      inventoryEventModel as never,
+      groceryListModel as never,
+      weeklyPlanModel as never,
+      usersService as never,
+      new DefaultDataFactory(),
+    );
+
+    const result = await service.applyOcrReview(authUser as never);
+
+    expect(inventoryItemModel.findOne).toHaveBeenCalledWith({
+      userId,
+      canonicalKey: 'spinach',
+    });
+    expect(item.quantity).toEqual({ value: 300, unit: 'g' });
+    expect(item.source).toBe('ocr');
+    expect(item.lastEventId).toBe(createdEvent._id);
+    expect(item.save).toHaveBeenCalled();
+    expect(result.updatedItems).toHaveLength(1);
+    expect(result.updatedItems[0]).toMatchObject({
+      canonicalKey: 'spinach',
+      normalizedName: 'fresh spinach',
+      quantity: { value: 300, unit: 'g' },
+    });
   });
 });

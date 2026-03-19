@@ -101,6 +101,7 @@ describe('PlannerGroceryProjector', () => {
     expect(groceryList.items[0]).toEqual(
       expect.objectContaining({
         name: 'Chicken breast',
+        canonicalKey: 'chicken breast',
         quantity: {
           value: 440,
           unit: 'g',
@@ -111,6 +112,92 @@ describe('PlannerGroceryProjector', () => {
         recipeIds: [recipeId],
         notes:
           'Needed for this week • Low stock item added from Kitchen inventory',
+      }),
+    );
+  });
+
+  it('canonicalizes ingredient aliases before grocery aggregation', async () => {
+    const userId = new Types.ObjectId();
+    const weeklyPlanId = new Types.ObjectId();
+    const recipeIdOne = new Types.ObjectId();
+    const recipeIdTwo = new Types.ObjectId();
+    const inventoryModel = {
+      find: jest.fn().mockResolvedValue([]),
+    };
+    const recipeModel = {
+      find: jest.fn().mockResolvedValue([
+        {
+          _id: recipeIdOne,
+          userId,
+          ingredients: [
+            {
+              name: 'Fresh spinach',
+              measurement: {
+                value: 200,
+                unit: 'g',
+              },
+            },
+          ],
+        },
+        {
+          _id: recipeIdTwo,
+          userId,
+          ingredients: [
+            {
+              name: 'Spinach leaves',
+              measurement: {
+                value: 100,
+                unit: 'g',
+              },
+            },
+          ],
+        },
+      ] satisfies Partial<RecipeRecord>[]),
+    };
+    const groceryListModel = {
+      findOne: jest.fn().mockResolvedValue(null),
+      create: jest.fn().mockResolvedValue(undefined),
+    };
+    const projector = new PlannerGroceryProjector(
+      groceryListModel as never,
+      inventoryModel as never,
+      recipeModel as never,
+    );
+
+    await projector.rebuildFromAcceptedPlan(userId, weeklyPlanId, [
+      {
+        dayKey: 'mon',
+        label: 'Mon, Mar 9',
+        meals: [
+          {
+            slot: 'lunch',
+            recipeId: recipeIdOne,
+            title: 'A',
+            shortLabel: 'A',
+            calories: 100,
+            tags: [],
+          },
+          {
+            slot: 'dinner',
+            recipeId: recipeIdTwo,
+            title: 'B',
+            shortLabel: 'B',
+            calories: 120,
+            tags: [],
+          },
+        ],
+      },
+    ] as WeeklyPlanDayValue[]);
+
+    expect(groceryListModel.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        items: [
+          expect.objectContaining({
+            canonicalKey: 'spinach',
+            quantity: { value: 300, unit: 'g' },
+            recipeIds: [recipeIdOne, recipeIdTwo],
+          }),
+        ],
       }),
     );
   });

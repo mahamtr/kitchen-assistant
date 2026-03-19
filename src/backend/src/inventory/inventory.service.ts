@@ -10,6 +10,7 @@ import {
   normalizeMeasurementValue,
   normalizeOptionalMeasurement,
 } from '../common/measurement';
+import { canonicalizeItemName } from '../common/item-canonicalization';
 import { DefaultDataFactory } from '../data/default-data.factory';
 import {
   GROCERY_LIST_MODEL,
@@ -26,10 +27,6 @@ import {
   WeeklyPlanRecord,
 } from '../data/schemas';
 import { UsersService } from '../users/users.service';
-
-function normalizeName(value: string) {
-  return value.toLowerCase().trim();
-}
 
 function isPlainObject(
   value: unknown,
@@ -204,7 +201,9 @@ export class InventoryService {
       metadata: item.metadata,
     });
     if (nextPatch.name) {
-      item.normalizedName = normalizeName(nextPatch.name);
+      const canonical = canonicalizeItemName(nextPatch.name);
+      item.normalizedName = canonical.normalizedName;
+      item.canonicalKey = canonical.canonicalKey;
     }
     await item.save();
 
@@ -613,13 +612,18 @@ export class InventoryService {
     const updatedItems: InventoryItemRecord[] = [];
 
     for (const line of acceptedLines) {
-      const normalizedName = normalizeName(line.name);
+      const canonical = canonicalizeItemName(line.name);
       const existing = await this.inventoryItemModel.findOne({
         userId: user._id,
-        normalizedName,
+        canonicalKey: canonical.canonicalKey,
       });
 
       if (existing) {
+        if (!existing.canonicalKey || !existing.normalizedName) {
+          existing.canonicalKey = canonical.canonicalKey;
+          existing.normalizedName = canonical.normalizedName;
+        }
+
         existing.quantity = this.mergeQuantities(
           line.name,
           existing.quantity,
@@ -639,7 +643,8 @@ export class InventoryService {
       const created = await this.inventoryItemModel.create({
         userId: user._id,
         name: line.name,
-        normalizedName,
+        normalizedName: canonical.normalizedName,
+        canonicalKey: canonical.canonicalKey,
         location: 'pantry',
         quantity: {
           value: line.quantityValue,
@@ -727,6 +732,7 @@ export class InventoryService {
       userId: item.userId.toString(),
       name: item.name,
       normalizedName: item.normalizedName,
+      canonicalKey: item.canonicalKey ?? canonicalizeItemName(item.name).canonicalKey,
       category: item.category,
       location: item.location,
       quantity: item.quantity ?? { value: null, unit: null },

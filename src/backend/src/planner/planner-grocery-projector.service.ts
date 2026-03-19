@@ -11,7 +11,7 @@ import {
   RecipeRecord,
   WeeklyPlanDayValue,
 } from '../data/schemas';
-import { normalizeName } from './planner.shared';
+import { canonicalizeItemName } from '../common/item-canonicalization';
 
 @Injectable()
 export class PlannerGroceryProjector {
@@ -48,6 +48,7 @@ export class PlannerGroceryProjector {
       string,
       {
         name: string;
+        canonicalKey: string;
         quantity: { value: number; unit: string };
         recipeIds: Set<string>;
       }
@@ -56,7 +57,8 @@ export class PlannerGroceryProjector {
     for (const recipe of selectedRecipes) {
       for (const ingredient of recipe.ingredients) {
         const quantity = ingredient.measurement;
-        const key = `${normalizeName(ingredient.name)}::${quantity.unit}`;
+        const canonical = canonicalizeItemName(ingredient.name);
+        const key = `${canonical.canonicalKey}::${quantity.unit}`;
         const existing = aggregates.get(key);
 
         if (existing) {
@@ -67,6 +69,7 @@ export class PlannerGroceryProjector {
 
         aggregates.set(key, {
           name: ingredient.name,
+          canonicalKey: canonical.canonicalKey,
           quantity,
           recipeIds: new Set([recipe._id.toString()]),
         });
@@ -81,6 +84,7 @@ export class PlannerGroceryProjector {
         ...entry,
         quantity: this.subtractInventoryQuantity(
           entry.name,
+          entry.canonicalKey,
           entry.quantity,
           inventoryItems,
         ),
@@ -89,6 +93,7 @@ export class PlannerGroceryProjector {
       .map((entry) => ({
         itemId: new Types.ObjectId(),
         name: entry.name,
+        canonicalKey: entry.canonicalKey,
         quantity: {
           value: Number(entry.quantity.value.toFixed(2)),
           unit: entry.quantity.unit,
@@ -139,12 +144,15 @@ export class PlannerGroceryProjector {
     const weeklyItemIndexes = new Map<string, number>();
 
     weeklyPlanItems.forEach((item, index) => {
-      weeklyItemIndexes.set(this.getItemKey(item.name, item.quantity.unit), index);
+      weeklyItemIndexes.set(
+        this.getItemKey(item.canonicalKey ?? item.name, item.quantity.unit),
+        index,
+      );
     });
 
     for (const preservedItem of preservedItems) {
       const key = this.getItemKey(
-        preservedItem.name,
+        preservedItem.canonicalKey ?? preservedItem.name,
         preservedItem.quantity.unit,
       );
       const weeklyItemIndex = weeklyItemIndexes.get(key);
@@ -156,6 +164,7 @@ export class PlannerGroceryProjector {
         const weeklyItem = mergedItems[weeklyItemIndex];
         mergedItems[weeklyItemIndex] = {
           ...weeklyItem,
+          canonicalKey: weeklyItem.canonicalKey ?? preservedItem.canonicalKey,
           itemId: preservedItem.itemId,
           source: preservedItem.source,
           inventoryItemId:
@@ -171,8 +180,9 @@ export class PlannerGroceryProjector {
     return mergedItems;
   }
 
-  private getItemKey(name: string, unit: string) {
-    return `${normalizeName(name)}::${unit}`;
+  private getItemKey(canonicalNameOrLabel: string, unit: string) {
+    const canonical = canonicalizeItemName(canonicalNameOrLabel);
+    return `${canonical.canonicalKey}::${unit}`;
   }
 
   private mergeNotes(
@@ -188,12 +198,18 @@ export class PlannerGroceryProjector {
 
   private subtractInventoryQuantity(
     ingredientName: string,
+    ingredientCanonicalKey: string,
     quantity: { value: number; unit: string },
     inventoryItems: InventoryItemRecord[],
   ) {
     const availableQuantity = inventoryItems.reduce((total, inventoryItem) => {
       if (
-        !this.inventoryMatchesIngredient(inventoryItem, ingredientName, quantity.unit)
+        !this.inventoryMatchesIngredient(
+          inventoryItem,
+          ingredientName,
+          ingredientCanonicalKey,
+          quantity.unit,
+        )
       ) {
         return total;
       }
@@ -210,9 +226,13 @@ export class PlannerGroceryProjector {
   private inventoryMatchesIngredient(
     inventoryItem: InventoryItemRecord,
     ingredientName: string,
+    ingredientCanonicalKey: string,
     ingredientUnit: string,
   ) {
-    if (normalizeName(inventoryItem.name) !== normalizeName(ingredientName)) {
+    const inventoryCanonical =
+      inventoryItem.canonicalKey || canonicalizeItemName(inventoryItem.name).canonicalKey;
+
+    if (inventoryCanonical !== ingredientCanonicalKey) {
       return false;
     }
 
@@ -227,7 +247,7 @@ export class PlannerGroceryProjector {
     }
 
     return this.areCompatibleCountUnits(
-      normalizeName(ingredientName),
+      canonicalizeItemName(ingredientName).canonicalKey,
       ingredientUnit,
       inventoryUnit,
     );

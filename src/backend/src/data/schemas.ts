@@ -105,6 +105,7 @@ export interface WeeklyPlanRevisionOutputValue {
 export interface GroceryListItemValue {
   itemId: EntityId;
   name: string;
+  canonicalKey?: string;
   quantity: GroceryQuantity;
   status: 'to_buy' | 'purchased' | 'skipped';
   source: 'weekly_plan' | 'low_stock' | 'urgent_expiring' | 'manual' | 'ocr';
@@ -292,6 +293,7 @@ const groceryListItemSchema = new Schema<GroceryListItemValue>(
   {
     itemId: { type: Schema.Types.ObjectId, required: true },
     name: { type: String, required: true },
+    canonicalKey: { type: String, default: '' },
     quantity: { type: groceryQuantitySchema, required: true },
     status: {
       type: String,
@@ -794,6 +796,7 @@ export interface InventoryItemRecord {
   userId: EntityId;
   name: string;
   normalizedName?: string;
+  canonicalKey?: string;
   category?: string;
   location: 'fridge' | 'pantry' | 'freezer' | 'unknown';
   quantity?: QuantityValue;
@@ -812,6 +815,7 @@ export const InventoryItemSchema = new Schema<InventoryItemRecord>(
     userId: { type: Schema.Types.ObjectId, required: true },
     name: { type: String, required: true },
     normalizedName: { type: String, default: '' },
+    canonicalKey: { type: String, default: '' },
     category: { type: String, default: '' },
     location: {
       type: String,
